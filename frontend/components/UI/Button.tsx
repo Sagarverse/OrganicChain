@@ -13,6 +13,8 @@ const Button: React.FC<ButtonProps> = ({
   disabled = false,
   className = '',
   fullWidth = false,
+  onClick,
+  type,
   ...rest
 }) => {
   const baseClasses = 'glass-button font-semibold transition-all duration-300';
@@ -28,12 +30,13 @@ const Button: React.FC<ButtonProps> = ({
 
   return (
     <motion.button
-      type={rest.type || 'button'}
+      type={(type as 'button' | 'submit' | 'reset') || 'button'}
       disabled={disabled}
+      onClick={onClick}
       className={`${baseClasses} ${variantClasses[variant]} ${widthClass} ${disabledClass} ${className}`}
       whileHover={!disabled ? { scale: 1.05 } : {}}
       whileTap={!disabled ? { scale: 0.95 } : {}}
-      {...rest}
+      {...(rest as any)}
     >
       {children}
     </motion.button>

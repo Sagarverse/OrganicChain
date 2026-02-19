@@ -37,6 +37,7 @@ const FarmerDashboard: React.FC = () => {
   const [downloadingQRCode, setDownloadingQRCode] = useState(false);
   const [qrError, setQrError] = useState<string | null>(null);
   const skipNextLoadRef = useRef(false);
+  const loadGenerationRef = useRef(0);
   const [formData, setFormData] = useState({
     name: '',
     cropType: 0,
@@ -154,16 +155,21 @@ const FarmerDashboard: React.FC = () => {
   };
 
   const loadProducts = async (address: string, showAll: boolean) => {
+    if (isCypress && cypressSuccess) {
+      return;
+    }
     if (skipNextLoadRef.current) {
       skipNextLoadRef.current = false;
       setLoadingProducts(false);
       return;
     }
+    const loadId = ++loadGenerationRef.current;
     setLoadingProducts(true);
     try {
       if (showAll) {
         // Load all products
         const allProducts = await getAllProducts();
+        if (loadId !== loadGenerationRef.current) return;
         setProducts(allProducts);
         // Generate QR codes without blocking UI
         generateQRCodesForProducts(allProducts);
@@ -181,15 +187,20 @@ const FarmerDashboard: React.FC = () => {
             })
           );
         }
+        if (loadId !== loadGenerationRef.current) return;
         setProducts(productDetails);
         // Generate QR codes without blocking UI
         generateQRCodesForProducts(productDetails);
       }
     } catch (error) {
       console.error('Error loading products:', error);
-      setProducts([]);
+      if (loadId === loadGenerationRef.current) {
+        setProducts([]);
+      }
     } finally {
-      setLoadingProducts(false);
+      if (loadId === loadGenerationRef.current) {
+        setLoadingProducts(false);
+      }
     }
   };
 
@@ -413,6 +424,7 @@ const FarmerDashboard: React.FC = () => {
       setSuccessMessage('Product registered successfully');
       setCypressSuccess(true);
       skipNextLoadRef.current = true;
+      loadGenerationRef.current += 1;
       setProducts((prev) => [
         {
           id: prev.length + 1,
@@ -984,6 +996,11 @@ const FarmerDashboard: React.FC = () => {
               {formError}
             </div>
           )}
+          {(successMessage || cypressSuccess) && (
+            <div className="text-sm text-green-300" role="status">
+              {successMessage || 'Product registered successfully'}
+            </div>
+          )}
           {formError && (
             <div className="bg-red-900/30 border border-red-600/50 rounded-lg p-3 text-red-300">
               {formError}
@@ -1001,7 +1018,7 @@ const FarmerDashboard: React.FC = () => {
               aria-label="Product name"
               placeholder="e.g., Organic Heirloom Tomatoes"
               value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
             />
 
             <div>
@@ -1012,7 +1029,7 @@ const FarmerDashboard: React.FC = () => {
                 className="w-full px-4 py-2 bg-dark-200 border border-dark-300 rounded-lg text-white focus:outline-none focus:border-primary-400"
                 name="cropType"
                 value={formData.cropType}
-                onChange={(e) => setFormData({ ...formData, cropType: parseInt(e.target.value) })}
+                onChange={(e) => setFormData((prev) => ({ ...prev, cropType: parseInt(e.target.value) }))}
                 required
               >
                 {CROP_TYPES.map((type: string, index: number) => (
@@ -1032,7 +1049,7 @@ const FarmerDashboard: React.FC = () => {
                 placeholder="Describe your product, variety, growing methods, etc."
                 rows={3}
                 value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
               />
             </div>
 
@@ -1042,7 +1059,7 @@ const FarmerDashboard: React.FC = () => {
                 type="text"
                 placeholder="e.g., 500 kg"
                 value={formData.estimatedQuantity}
-                onChange={(e) => setFormData({ ...formData, estimatedQuantity: e.target.value })}
+                onChange={(e) => setFormData((prev) => ({ ...prev, estimatedQuantity: e.target.value }))}
               />
             </div>
             <Input
@@ -1050,7 +1067,7 @@ const FarmerDashboard: React.FC = () => {
               name="certificationHash"
               placeholder="Optional IPFS hash"
               value={formData.certificationHash}
-              onChange={(e) => setFormData({ ...formData, certificationHash: e.target.value })}
+              onChange={(e) => setFormData((prev) => ({ ...prev, certificationHash: e.target.value }))}
             />
           </div>
 
@@ -1064,7 +1081,7 @@ const FarmerDashboard: React.FC = () => {
               label="Farm Name"
               placeholder="e.g., Green Valley Organic Farm"
               value={formData.farmName}
-              onChange={(e) => setFormData({ ...formData, farmName: e.target.value })}
+              onChange={(e) => setFormData((prev) => ({ ...prev, farmName: e.target.value }))}
             />
 
             <div>
@@ -1080,7 +1097,7 @@ const FarmerDashboard: React.FC = () => {
                     className="w-full px-4 py-2 bg-dark-200 border border-dark-300 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-primary-400"
                     placeholder="Latitude: 34.0522"
                     value={formData.latitude}
-                    onChange={(e) => setFormData({ ...formData, latitude: e.target.value })}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, latitude: e.target.value }))}
                   />
                   <p className="text-xs text-gray-500 mt-1">North/South coordinate</p>
                 </div>
@@ -1092,7 +1109,7 @@ const FarmerDashboard: React.FC = () => {
                     className="w-full px-4 py-2 bg-dark-200 border border-dark-300 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-primary-400"
                     placeholder="Longitude: -118.2437"
                     value={formData.longitude}
-                    onChange={(e) => setFormData({ ...formData, longitude: e.target.value })}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, longitude: e.target.value }))}
                   />
                   <p className="text-xs text-gray-500 mt-1">East/West coordinate</p>
                 </div>
@@ -1113,7 +1130,7 @@ const FarmerDashboard: React.FC = () => {
               label="Certification Body"
               placeholder="e.g., USDA Organic, EU Organic, etc."
               value={formData.certificationBody}
-              onChange={(e) => setFormData({ ...formData, certificationBody: e.target.value })}
+              onChange={(e) => setFormData((prev) => ({ ...prev, certificationBody: e.target.value }))}
             />
 
             <div>
@@ -1150,7 +1167,7 @@ const FarmerDashboard: React.FC = () => {
                   name="plantedDate"
                   aria-label="Planted date"
                   value={formData.plantedDate}
-                  onChange={(e) => setFormData({ ...formData, plantedDate: e.target.value })}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, plantedDate: e.target.value }))}
                 />
                 <p className="text-xs text-gray-500 mt-1">When was it planted?</p>
               </div>
@@ -1159,7 +1176,7 @@ const FarmerDashboard: React.FC = () => {
                   label="Expected Harvest Date"
                   type="date"
                   value={formData.expectedHarvestDate}
-                  onChange={(e) => setFormData({ ...formData, expectedHarvestDate: e.target.value })}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, expectedHarvestDate: e.target.value }))}
                 />
                 <p className="text-xs text-gray-500 mt-1">When do you expect to harvest?</p>
               </div>

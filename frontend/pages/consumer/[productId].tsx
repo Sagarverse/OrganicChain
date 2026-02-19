@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
+import dynamic from 'next/dynamic';
 import { motion } from 'framer-motion';
 import GlassCard from '../../components/Layout/GlassCard';
 import VerificationBadge from '../../components/Blockchain/VerificationBadge';
@@ -9,13 +10,18 @@ import FreshnessScore from '../../components/Advanced/FreshnessScore';
 import SustainabilityScore from '../../components/Advanced/SustainabilityScore';
 import ComparisonAnalytics from '../../components/Advanced/ComparisonAnalytics';
 import SensorSimulator from '../../components/Advanced/SensorSimulator';
-import ProductJourneyMap from '../../components/Maps/ProductJourneyMap';
 import Modal from '../../components/UI/Modal';
 import Button from '../../components/UI/Button';
 import { getProductHistory, verifyProduct, calculateDistance, getCertificate } from '../../utils/blockchain';
 import { getIPFSUrl } from '../../utils/ipfs';
 import { FaQrcode, FaCertificate, FaMapMarkedAlt, FaIndustry, FaThermometerHalf, FaBox } from 'react-icons/fa';
 import { PRODUCT_STATUS } from '../../utils/constants';
+
+// Dynamically import ProductJourneyMap (requires leaflet, client-side only)
+const ProductJourneyMap = dynamic(
+  () => import('../../components/Maps/ProductJourneyMap'),
+  { ssr: false, loading: () => <div className="h-96 bg-gray-700 rounded-lg animate-pulse" /> }
+);
 
 export default function ConsumerProductPage() {
   const router = useRouter();
