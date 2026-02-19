@@ -5,8 +5,10 @@ import GlassCard from '../../components/Layout/GlassCard';
 import VerificationBadge from '../../components/Blockchain/VerificationBadge';
 import ProductTrace from '../../components/Blockchain/ProductTrace';
 import CarbonFootprint from '../../components/Advanced/CarbonFootprint';
+import FreshnessScore from '../../components/Advanced/FreshnessScore';
+import SustainabilityScore from '../../components/Advanced/SustainabilityScore';
 import { getProductHistory, verifyProduct, calculateDistance } from '../../utils/blockchain';
-import { FaQrcode, FaCertificate, FaMapMarkedAlt } from 'react-icons/fa';
+import { FaQrcode, FaCertificate, FaMapMarkedAlt, FaIndustry, FaThermometerHalf, FaBox } from 'react-icons/fa';
 
 export default function ConsumerProductPage() {
   const router = useRouter();
@@ -151,10 +153,105 @@ export default function ConsumerProductPage() {
             </div>
           </GlassCard>
 
+          {/* Batch Processing Information */}
+          {batches.length > 0 && (
+            <GlassCard>
+              <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                <FaIndustry className="text-primary-400" />
+                Processing Batches ({batches.length})
+              </h3>
+              <div className="space-y-4">
+                {batches.map((batch: any, index: number) => (
+                  <div 
+                    key={index}
+                    className="p-4 bg-primary-500/10 border border-primary-500/30 rounded-lg"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <p className="font-bold text-primary-300">Batch #{Number(batch.batchId)}</p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          Processor: {batch.processor?.substring(0, 10)}...
+                        </p>
+                      </div>
+                      <span className="px-3 py-1 bg-green-500/20 text-green-400 rounded-full text-xs font-semibold">
+                        ✓ Processed
+                      </span>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <p className="text-gray-400 text-xs">Quantity</p>
+                        <p className="font-semibold">{Number(batch.quantity)} kg</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-400 text-xs">Date</p>
+                        <p className="font-semibold">
+                          {new Date(Number(batch.processedDate) * 1000).toLocaleDateString()}
+                        </p>
+                      </div>
+                      {batch.sensorLogs && batch.sensorLogs.length > 0 && (
+                        <>
+                          <div>
+                            <p className="text-gray-400 text-xs flex items-center gap-1">
+                              <FaThermometerHalf className="text-xs" />
+                              Temperature
+                            </p>
+                            <p className="font-semibold">
+                              {(Number(batch.sensorLogs[batch.sensorLogs.length - 1].temperature) / 100).toFixed(1)}°C
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-gray-400 text-xs">Humidity</p>
+                            <p className="font-semibold">
+                              {(Number(batch.sensorLogs[batch.sensorLogs.length - 1].humidity) / 100).toFixed(0)}%
+                            </p>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    
+                    {batch.packagingDetails && (
+                      <div className="mt-3 pt-3 border-t border-gray-700">
+                        <p className="text-gray-400 text-xs mb-1 flex items-center gap-1">
+                          <FaBox className="text-xs" />
+                          Packaging
+                        </p>
+                        <p className="text-sm">{batch.packagingDetails}</p>
+                      </div>
+                    )}
+                    
+                    {batch.sensorLogs && batch.sensorLogs.some((log: any) => log.anomalyDetected) && (
+                      <div className="mt-3 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded text-xs text-yellow-400">
+                        ⚠️ Temperature anomaly detected during storage
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </GlassCard>
+          )}
+
           {/* Carbon Footprint */}
           <CarbonFootprint
             distanceKm={calculateTravelDistance()}
             storageDays={calculateStorageDays()}
+          />
+
+          {/* Freshness Score */}
+          <FreshnessScore
+            plantedDate={Number(product.plantedDate)}
+            harvestDate={Number(product.harvestDate) || 0}
+            batches={batches}
+          />
+
+          <SustainabilityScore
+            distanceKm={calculateTravelDistance()}
+            hasOrganicCert={batches.some((b: any) => b.certificateIds && b.certificateIds.length > 0)}
+            batches={batches}
+            storageDays={product.harvestDate > 0 
+              ? Math.floor((Date.now() / 1000 - Number(product.harvestDate)) / (24 * 60 * 60))
+              : 0
+            }
           />
         </div>
 

@@ -6,7 +6,9 @@ import {
   FaIndustry, 
   FaBoxOpen, 
   FaTruck, 
-  FaStore 
+  FaStore,
+  FaHandshake,
+  FaArrowRight
 } from 'react-icons/fa';
 import { PRODUCT_STATUS } from '../../utils/constants';
 import { formatDate } from '../../utils/blockchain';
@@ -119,6 +121,110 @@ const ProductTrace: React.FC<ProductTraceProps> = ({ product, batches }) => {
           </motion.div>
         ))}
       </div>
+
+      {/* Custody Chain */}
+      {product.currentCustodian && (
+        <div className="mt-8">
+          <h4 className="text-xl font-bold mb-4 flex items-center gap-2">
+            <FaHandshake className="text-blue-400" />
+            Custody Chain
+          </h4>
+          <div className="space-y-3">
+            {/* Farmer - Initial Custody */}
+            <motion.div
+              className="glass-card p-4"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.1 }}
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
+                  <FaSeedling className="text-green-400" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm text-gray-400">Farmer (Origin)</p>
+                  <p className="font-mono text-sm text-primary-300">
+                    {product.farmer?.substring(0, 20)}...
+                  </p>
+                </div>
+                {product.plantedDate && (
+                  <span className="text-xs text-gray-500">
+                    {formatDate(Number(product.plantedDate))}
+                  </span>
+                )}
+              </div>
+            </motion.div>
+
+            {/* Arrow */}
+            {batches.length > 0 && (
+              <div className="flex justify-center">
+                <FaArrowRight className="text-gray-600" />
+              </div>
+            )}
+
+            {/* Processors - Multiple possible */}
+            {batches.map((batch, index) => (
+              <motion.div
+                key={`processor-${index}`}
+                className="glass-card p-4"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.2 + (index * 0.1) }}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center">
+                    <FaIndustry className="text-blue-400" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm text-gray-400">Processor #{index + 1}</p>
+                    <p className="font-mono text-sm text-primary-300">
+                      {batch.processor?.substring(0, 20)}...
+                    </p>
+                  </div>
+                  {batch.processedDate && (
+                    <span className="text-xs text-gray-500">
+                      {formatDate(Number(batch.processedDate))}
+                    </span>
+                  )}
+                </div>
+              </motion.div>
+            ))}
+
+            {/* Arrow to current custodian if different */}
+            {product.currentCustodian && 
+             product.currentCustodian.toLowerCase() !== product.farmer?.toLowerCase() &&
+             !batches.some((b: any) => b.processor?.toLowerCase() === product.currentCustodian.toLowerCase()) && (
+              <>
+                <div className="flex justify-center">
+                  <FaArrowRight className="text-gray-600" />
+                </div>
+
+                <motion.div
+                  className="glass-card p-4 border-2 border-primary-500/50"
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.4 }}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-primary-500/20 flex items-center justify-center">
+                      <FaStore className="text-primary-400" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm text-gray-400">Current Custodian</p>
+                      <p className="font-mono text-sm text-primary-300">
+                        {product.currentCustodian?.substring(0, 20)}...
+                      </p>
+                      <span className="inline-block mt-1 px-2 py-1 bg-primary-500/20 text-primary-400 rounded text-xs">
+                        ✓ In Possession
+                      </span>
+                    </div>
+                  </div>
+                </motion.div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Current Status */}
       <motion.div
