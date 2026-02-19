@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { FaSeedling, FaPlus, FaBox, FaFilter, FaQrcode, FaDownload, FaMapMarkerAlt, FaCalendar } from 'react-icons/fa';
+import { FaSeedling, FaPlus, FaBox, FaFilter, FaQrcode, FaDownload, FaMapMarkerAlt, FaCalendar, FaShieldAlt } from 'react-icons/fa';
 import GlassCard from '../Layout/GlassCard';
 import Button from '../UI/Button';
 import Input from '../UI/Input';
 import Modal from '../UI/Modal';
-import { getCurrentAccount, registerProduct, getFarmerProducts, getProductHistory, getAllProducts } from '../../utils/blockchain';
+import { useRouter } from 'next/router';
+import { getCurrentAccount, registerProduct, getFarmerProducts, getProductHistory, getAllProducts, checkRole } from '../../utils/blockchain';
 import { mockUploadToIPFS } from '../../utils/ipfs';
 import { CROP_TYPES, PRODUCT_STATUS } from '../../utils/constants';
 import { generateProductQRCode, downloadProductQRCode, formatDate, formatCoordinates } from '../../utils/qrcode';
 
 const FarmerDashboard: React.FC = () => {
+  const router = useRouter();
   const [account, setAccount] = useState<string | null>(null);
   const [products, setProducts] = useState<any[]>([]);
   const [showAllProducts, setShowAllProducts] = useState(true);
@@ -20,6 +22,7 @@ const FarmerDashboard: React.FC = () => {
   const [qrCodes, setQrCodes] = useState<{ [key: number]: string }>({});
   const [showQRModal, setShowQRModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [hasFarmerRole, setHasFarmerRole] = useState<boolean>(true); // Assume true initially to avoid flash
   const [formData, setFormData] = useState({
     name: '',
     cropType: 0,
@@ -35,6 +38,20 @@ const FarmerDashboard: React.FC = () => {
 
   useEffect(() => {
     loadData();
+    
+    // Listen for account changes
+    if (typeof window !== 'undefined' && window.ethereum) {
+      const handleAccountsChanged = () => {
+        console.log('Account changed, reloading...');
+        loadData();
+      };
+      
+      window.ethereum.on('accountsChanged', handleAccountsChanged);
+      
+      return () => {
+        window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
+      };
+    }
   }, []);
 
   useEffect(() => {
@@ -48,6 +65,15 @@ const FarmerDashboard: React.FC = () => {
     setAccount(acc);
     if (acc) {
       await loadProducts(acc, showAllProducts);
+      // Check if user has FARMER_ROLE
+      try {
+        const hasRole = await checkRole(acc, 'FARMER_ROLE');
+        setHasFarmerRole(hasRole);
+        console.log('FARMER_ROLE check for', acc, ':', hasRole);
+      } catch (error) {
+        console.error('Error checking farmer role:', error);
+        setHasFarmerRole(false);
+      }
     }
   };
 
@@ -211,7 +237,26 @@ const FarmerDashboard: React.FC = () => {
       
       let errorMessage = 'Failed to register product. ';
       
-      if (error.code === 4001) {
+      // Check for UnauthorizedAccess error (0x344fd586)
+      if (error.data === '0x344fd586' || error.message?.includes('0x344fd586')) {
+        errorMessage = '🚫 AUTHORIZATION ERROR\n\n';
+        errorMessage += 'Your MetaMask account does not have FARMER_ROLE permission.\n\n';
+        errorMessage += '✅ SOLUTION:\n';
+        errorMessage += '1. Click "Manage Roles" button (purple, top right)\n';
+        errorMessage += '2. Import the ADMIN account shown there\n';
+        errorMessage += '3. Grant FARMER_ROLE to your address\n';
+        errorMessage += '4. Switch back and try again\n\n';
+        errorMessage += '💡 TIP: The admin account private key is displayed on the Manage Roles page with a "Copy" button.';
+      } else if (error.message?.includes('missing role 0x0000000000000000000000000000000000000000000000000000000000000000')) {
+        errorMessage = '🚫 ADMIN ROLE REQUIRED\n\n';
+        errorMessage += 'You need ADMIN_ROLE to perform this action.\n\n';
+        errorMessage += '✅ SOLUTION:\n';
+        errorMessage += '1. Click "Manage Roles" button (purple, top right)\n';
+        errorMessage += '2. Follow the instructions to import the admin account\n';
+        errorMessage += '3. Use that account to grant roles\n\n';
+        errorMessage += 'Admin Private Key:\n';
+        errorMessage += '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
+      } else if (error.code === 4001) {
         errorMessage += 'You rejected the transaction.';
       } else if (error.code === 'NETWORK_ERROR') {
         errorMessage += 'Network error. Make sure MetaMask is connected to Hardhat Local (Chain ID: 31337).';
@@ -220,7 +265,7 @@ const FarmerDashboard: React.FC = () => {
       } else if (error.message?.includes('insufficient funds')) {
         errorMessage += 'Insufficient ETH for gas fees.';
       } else if (error.message?.includes('AccessControl')) {
-        errorMessage += 'Your account does not have FARMER_ROLE. Please use an authorized farmer account.';
+        errorMessage += 'Your account does not have FARMER_ROLE. Click "Manage Roles" above to grant yourself the role.';
       } else if (error.reason) {
         errorMessage += error.reason;
       } else if (error.message) {
@@ -259,6 +304,70 @@ const FarmerDashboard: React.FC = () => {
         </div>
       )}
 
+      {/* FARMER_ROLE Warning */}
+      {account && !hasFarmerRole && (
+        <div className="bg-red-900/30 border border-red-600/50 rounded-lg p-4 flex items-start gap-3">
+          <div className="text-red-500 text-xl">🚫</div>
+          <div className="flex-1">
+            <h3 className="text-red-400 font-semibold mb-2">Missing FARMER_ROLE Permission</h3>
+            <p className="text-red-200/80 text-sm mb-3">
+              Your account <span className="font-mono text-red-300">{account.slice(0, 6)}...{account.slice(-4)}</span> does not have FARMER_ROLE. 
+              You won't be able to register products.
+            </p>
+            <div className="space-y-2">
+              <p className="text-red-200/80 text-sm font-semibold">✅ Quick Fix Options:</p>
+              <div className="bg-red-950/50 rounded p-3 space-y-2">
+                <p className="text-red-200/90 text-sm">
+                  <strong>Option 1:</strong> Click the "Manage Roles" button above to grant yourself FARMER_ROLE
+                </p>
+                <p className="text-red-200/90 text-sm">
+                  <strong>Option 2:</strong> Import Test Account #0 into MetaMask:
+                </p>
+                <div className="bg-black/30 rounded p-2 mt-1">
+                  <p className="text-xs font-mono text-red-300 break-all">
+                    0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-3">
+              <Button 
+                onClick={() => router.push('/admin/roles')}
+                variant="secondary"
+                className="bg-red-600 hover:bg-red-700 border-red-500"
+              >
+                <FaShieldAlt className="inline mr-2" />
+                Go to Role Management
+              </Button>
+              <Button 
+                onClick={async () => {
+                  if (account) {
+                    console.log('Refreshing role status...');
+                    try {
+                      const hasRole = await checkRole(account, 'FARMER_ROLE');
+                      setHasFarmerRole(hasRole);
+                      console.log('Role refreshed:', hasRole);
+                      if (hasRole) {
+                        alert('✅ Success! You now have FARMER_ROLE. The warning will disappear.');
+                      } else {
+                        alert('❌ Still no FARMER_ROLE. Make sure you granted the role and approved the transaction.');
+                      }
+                    } catch (error) {
+                      console.error('Error refreshing role:', error);
+                      alert('❌ Error checking role. See console for details.');
+                    }
+                  }
+                }}
+                variant="secondary"
+                className="bg-blue-600 hover:bg-blue-700 border-blue-500"
+              >
+                🔄 Refresh Role Status
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -271,6 +380,14 @@ const FarmerDashboard: React.FC = () => {
           )}
         </div>
         <div className="flex gap-3">
+          <Button 
+            onClick={() => router.push('/admin/roles')}
+            variant="secondary"
+            className="bg-purple-600 hover:bg-purple-700 border-purple-500"
+          >
+            <FaShieldAlt className="inline mr-2" />
+            Manage Roles
+          </Button>
           <Button 
             onClick={() => setShowAllProducts(!showAllProducts)}
             variant="secondary"

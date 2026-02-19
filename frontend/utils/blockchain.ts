@@ -1,5 +1,8 @@
 import { ethers, BrowserProvider, Contract } from 'ethers';
-import { CONTRACT_ADDRESS, CONTRACT_ABI } from './constants';
+import { CONTRACT_ADDRESS } from './constants';
+import ContractArtifact from '../contracts/OrganicSupplyChain.json';
+
+const CONTRACT_ABI = ContractArtifact.abi;
 
 declare global {
   interface Window {
@@ -417,8 +420,16 @@ export const checkRole = async (address: string, roleName: string) => {
   if (!contract) throw new Error('Contract not available');
 
   try {
-    // Get the role hash
-    const roleHash = ethers.keccak256(ethers.toUtf8Bytes(roleName));
+    let roleHash;
+    
+    // DEFAULT_ADMIN_ROLE is 0x00...00 (bytes32(0)), not a keccak256 hash
+    if (roleName === 'DEFAULT_ADMIN_ROLE' || roleName === 'ADMIN') {
+      roleHash = '0x0000000000000000000000000000000000000000000000000000000000000000';
+    } else {
+      // Other roles are keccak256 hashes of their names
+      roleHash = ethers.keccak256(ethers.toUtf8Bytes(roleName));
+    }
+    
     const hasRole = await contract.hasRole(roleHash, address);
     return hasRole;
   } catch (error) {
