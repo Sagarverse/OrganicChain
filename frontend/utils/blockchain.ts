@@ -403,7 +403,34 @@ export const getProductHistory = async (productId: number) => {
   if (!contract) throw new Error('Contract not available');
 
   const [product, batches] = await contract.getProductHistory(productId);
-  return { product, batches };
+  
+  // Convert bigint values to numbers for frontend compatibility
+  const convertedProduct = {
+    ...product,
+    id: Number(product.id),
+    cropType: Number(product.cropType),
+    plantedDate: Number(product.plantedDate),
+    expectedHarvestDate: Number(product.expectedHarvestDate),
+    harvestDate: Number(product.harvestDate),
+    harvestQuantity: Number(product.harvestQuantity),
+    status: Number(product.status),
+    batchIds: product.batchIds.map((id: bigint) => Number(id)),
+    transferDate: Number(product.transferDate),
+    receivedDate: Number(product.receivedDate),
+    expiryDate: Number(product.expiryDate),
+    retailPrice: Number(product.retailPrice),
+    authenticityScore: Number(product.authenticityScore),
+    farmLocation: {
+      ...product.farmLocation,
+      latitude: String(product.farmLocation.latitude),
+      longitude: String(product.farmLocation.longitude),
+      timestamp: Number(product.farmLocation.timestamp)
+    }
+  };
+  
+  console.log('[BlockchainUtils] getProductHistory converted product:', convertedProduct);
+  
+  return { product: convertedProduct, batches };
 };
 
 /**
@@ -821,4 +848,29 @@ export const flagTamper = async (productId: number, reason: string) => {
     console.error('Error flagging tamper:', error);
     throw error;
   }
+};
+/**
+ * Grant DEFAULT_ADMIN_ROLE to an address (requires current admin)
+ */
+export const grantAdminRole = async (address: string) => {
+  const contract = await getContract(true);
+  if (!contract) throw new Error('Contract not available');
+
+  try {
+    // DEFAULT_ADMIN_ROLE is 0x0000000000000000000000000000000000000000000000000000000000000000
+    const DEFAULT_ADMIN_ROLE = '0x0000000000000000000000000000000000000000000000000000000000000000';
+    const tx = await contract.grantRole(DEFAULT_ADMIN_ROLE, address);
+    await tx.wait();
+    return tx;
+  } catch (error) {
+    console.error('Error granting admin role:', error);
+    throw error;
+  }
+};
+
+/**
+ * Check if address has DEFAULT_ADMIN_ROLE
+ */
+export const hasAdminRole = async (address: string) => {
+  return await checkRole(address, 'DEFAULT_ADMIN_ROLE');
 };

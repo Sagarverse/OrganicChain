@@ -219,10 +219,16 @@ const FarmerDashboard: React.FC = () => {
   };
 
   const handleDownloadQR = async (product: any) => {
+    if (!product || !product.id) {
+      setQrError('Invalid product: missing product ID');
+      return;
+    }
+    
     setDownloadingQRCode(true);
     setQrError(null);
     try {
-      await downloadProductQRCode(Number(product.id), product.name);
+      const productName = product.name || `Product ${product.id}`;
+      await downloadProductQRCode(Number(product.id), productName);
       setQrError(null);
     } catch (error: any) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to download QR code. Please try again.';
@@ -605,90 +611,94 @@ const FarmerDashboard: React.FC = () => {
     <div className="space-y-6">
       {/* Wallet Connection Warning */}
       {!account && (
-        <div className="bg-yellow-900/30 border border-yellow-600/50 rounded-lg p-4 flex items-start gap-3">
-          <div className="text-yellow-500 text-xl">⚠️</div>
-          <div>
-            <h3 className="text-yellow-400 font-semibold mb-1">Wallet Not Connected</h3>
-            <p className="text-yellow-200/80 text-sm mb-2">
-              Please connect your MetaMask wallet to use the Farmer Dashboard.
-            </p>
-            <p className="text-yellow-200/80 text-sm">
-              Make sure you're connected to <strong>Hardhat Local</strong> network (Chain ID: 31337) 
-              and using an account with FARMER_ROLE.
-            </p>
-            <Button variant="secondary" className="mt-3">
-              Connect Wallet
-            </Button>
-            <a 
-              href="/api/setup-help" 
-              target="_blank"
-              className="text-yellow-400 hover:text-yellow-300 text-sm underline mt-2 inline-block"
-            >
-              View Setup Instructions →
-            </a>
+        <div className="glass-card border border-orange-500/30 bg-amber-950/20">
+          <div className="flex items-start gap-4">
+            <div className="text-orange-400 text-2xl mt-1">⚠️</div>
+            <div className="flex-1">
+              <h3 className="text-orange-300 font-bold text-lg mb-2">Wallet Not Connected</h3>
+              <p className="text-gray-300 text-sm mb-3">
+                Please connect your MetaMask wallet to use the Farmer Dashboard.
+              </p>
+              <p className="text-gray-400 text-sm mb-4">
+                Make sure you're connected to <span className="font-mono text-orange-300">Hardhat Local</span> network (Chain ID: 31337) 
+                and using an account with <span className="font-mono text-orange-300">FARMER_ROLE</span>.
+              </p>
+              <div className="flex gap-3">
+                <Button variant="secondary">
+                  Connect Wallet
+                </Button>
+                <a 
+                  href="/api/setup-help" 
+                  target="_blank"
+                  className="text-orange-400 hover:text-orange-300 text-sm underline mt-3 inline-flex items-center gap-1"
+                >
+                  View Setup Instructions →
+                </a>
+              </div>
+            </div>
           </div>
         </div>
       )}
 
       {/* FARMER_ROLE Warning */}
       {account && !hasFarmerRole && (
-        <div className="bg-red-900/30 border border-red-600/50 rounded-lg p-4 flex items-start gap-3">
-          <div className="text-red-500 text-xl">🚫</div>
-          <div className="flex-1">
-            <h3 className="text-red-400 font-semibold mb-2">Missing FARMER_ROLE Permission</h3>
-            <p className="text-red-200/80 text-sm mb-3">
-              Your account <span className="font-mono text-red-300">{account.slice(0, 6)}...{account.slice(-4)}</span> does not have FARMER_ROLE. 
-              You won't be able to register products.
-            </p>
-            <div className="space-y-2">
-              <p className="text-red-200/80 text-sm font-semibold">✅ Quick Fix Options:</p>
-              <div className="bg-red-950/50 rounded p-3 space-y-2">
-                <p className="text-red-200/90 text-sm">
-                  <strong>Option 1:</strong> Click the "Manage Roles" button above to grant yourself FARMER_ROLE
-                </p>
-                <p className="text-red-200/90 text-sm">
-                  <strong>Option 2:</strong> Import Test Account #0 into MetaMask:
-                </p>
-                <div className="bg-black/30 rounded p-2 mt-1">
-                  <p className="text-xs font-mono text-red-300 break-all">
-                    0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+        <div className="glass-card border border-red-500/30 bg-red-950/20">
+          <div className="flex items-start gap-4">
+            <div className="text-red-400 text-2xl mt-1">🚫</div>
+            <div className="flex-1">
+              <h3 className="text-red-300 font-bold text-lg mb-3">Missing FARMER_ROLE Permission</h3>
+              <p className="text-gray-300 text-sm mb-4">
+                Your account <span className="font-mono text-red-300">{account.slice(0, 6)}...{account.slice(-4)}</span> does not have FARMER_ROLE. 
+                You won't be able to register products.
+              </p>
+              <div className="space-y-3 mb-4">
+                <p className="text-gray-300 text-sm font-semibold">✅ Quick Fix Options:</p>
+                <div className="glass-card bg-black/30 border border-red-500/20 p-4">
+                  <p className="text-gray-300 text-sm mb-2">
+                    <strong>Option 1:</strong> Click the "Manage Roles" button to grant yourself FARMER_ROLE
                   </p>
+                  <p className="text-gray-300 text-sm mb-3">
+                    <strong>Option 2:</strong> Import Test Account #0 into MetaMask:
+                  </p>
+                  <div className="bg-black/50 rounded p-3 border border-red-500/20">
+                    <p className="text-xs font-mono text-red-300 break-all select-all">
+                      0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="flex gap-2 mt-3">
-              <Button 
-                onClick={() => router.push('/admin/roles')}
-                variant="secondary"
-                className="bg-red-600 hover:bg-red-700 border-red-500"
-              >
-                <FaShieldAlt className="inline mr-2" />
-                Go to Role Management
-              </Button>
-              <Button 
-                onClick={async () => {
-                  if (account) {
-                    console.log('Refreshing role status...');
-                    try {
-                      const hasRole = await checkRole(account, 'FARMER_ROLE');
-                      setHasFarmerRole(hasRole);
-                      console.log('Role refreshed:', hasRole);
-                      if (hasRole) {
-                        alert('✅ Success! You now have FARMER_ROLE. The warning will disappear.');
-                      } else {
-                        alert('❌ Still no FARMER_ROLE. Make sure you granted the role and approved the transaction.');
+              <div className="flex gap-3">
+                <Button 
+                  onClick={() => router.push('/admin/roles')}
+                  variant="secondary"
+                >
+                  <FaShieldAlt className="inline mr-2" />
+                  Go to Role Management
+                </Button>
+                <Button 
+                  onClick={async () => {
+                    if (account) {
+                      console.log('Refreshing role status...');
+                      try {
+                        const hasRole = await checkRole(account, 'FARMER_ROLE');
+                        setHasFarmerRole(hasRole);
+                        console.log('Role refreshed:', hasRole);
+                        if (hasRole) {
+                          alert('✅ Success! You now have FARMER_ROLE. The warning will disappear.');
+                        } else {
+                          alert('❌ Still no FARMER_ROLE. Make sure you granted the role and approved the transaction.');
+                        }
+                      } catch (error) {
+                        console.error('Error refreshing role:', error);
+                        alert('❌ Error checking role. See console for details.');
                       }
-                    } catch (error) {
-                      console.error('Error refreshing role:', error);
-                      alert('❌ Error checking role. See console for details.');
                     }
-                  }
-                }}
-                variant="secondary"
-                className="bg-blue-600 hover:bg-blue-700 border-blue-500"
-              >
-                🔄 Refresh Role Status
-              </Button>
+                  }}
+                  variant="accent"
+                >
+                  🔄 Refresh Role Status
+                </Button>
+              </div>
             </div>
           </div>
         </div>
@@ -710,27 +720,26 @@ const FarmerDashboard: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-4xl font-bold gradient-text mb-2">Farmer Dashboard</h1>
-          <p className="text-gray-400">Manage your organic produce</p>
+          <h1 className="text-5xl font-bold gradient-text mb-2">🌾 Farmer Dashboard</h1>
+          <p className="text-gray-400 text-lg">Manage your organic produce</p>
           {account && (
-            <p className="text-sm text-gray-500 mt-1" data-cy="wallet-address">
-              Connected: <span className="text-primary-400 font-mono">{account.slice(0, 6)}...{account.slice(-4)}</span>
+            <p className="text-sm text-gray-500 mt-2" data-cy="wallet-address">
+              Connected: <span className="text-emerald-400 font-mono">{account.slice(0, 6)}...{account.slice(-4)}</span>
               <span className="sr-only">{account}</span>
             </p>
           )}
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-3 flex-wrap">
           <Button 
             onClick={() => router.push('/admin/roles')}
             variant="secondary"
-            className="bg-purple-600 hover:bg-purple-700 border-purple-500"
           >
             <FaShieldAlt className="inline mr-2" />
             Manage Roles
           </Button>
           <button
             type="button"
-            className="md:hidden text-sm text-gray-300"
+            className="md:hidden text-sm text-gray-300 hover:text-gray-200 transition-colors"
             data-cy="mobile-menu"
           >
             Menu
@@ -749,6 +758,7 @@ const FarmerDashboard: React.FC = () => {
               setLastRegisteredName('');
               setIsModalOpen(true);
             }}
+            variant="primary"
             data-cy="register-product-btn"
             aria-label="Register product"
             autoFocus
@@ -760,9 +770,9 @@ const FarmerDashboard: React.FC = () => {
       </div>
 
       {(successMessage || cypressSuccess) && (
-        <div className="bg-green-900/30 border border-green-600/50 rounded-lg p-3 text-green-300">
-          <div>{successMessage || 'Product registered successfully'}</div>
-          {lastRegisteredName && <div className="text-sm">{lastRegisteredName}</div>}
+        <div className="glass-card border border-green-500/30 bg-green-950/20">
+          <div className="text-green-300 font-semibold">{successMessage || 'Product registered successfully'}</div>
+          {lastRegisteredName && <div className="text-sm text-green-300/80 mt-2">{lastRegisteredName}</div>}
         </div>
       )}
 
@@ -1032,7 +1042,7 @@ const FarmerDashboard: React.FC = () => {
                 Crop Type *
               </label>
               <select
-                className="w-full px-4 py-2 bg-dark-200 border border-dark-300 rounded-lg text-white focus:outline-none focus:border-primary-400"
+                className="w-full"
                 name="cropType"
                 value={formData.cropType}
                 onChange={(e) => setFormData((prev) => ({ ...prev, cropType: parseInt(e.target.value) }))}
@@ -1051,7 +1061,7 @@ const FarmerDashboard: React.FC = () => {
                 Product Description
               </label>
               <textarea
-                className="w-full px-4 py-2 bg-dark-200 border border-dark-300 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-primary-400"
+                className="w-full"
                 placeholder="Describe your product, variety, growing methods, etc."
                 rows={3}
                 value={formData.description}

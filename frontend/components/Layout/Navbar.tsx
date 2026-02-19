@@ -48,68 +48,76 @@ const Navbar: React.FC = () => {
     }
   };
 
+  const navLinks = [
+    { href: '/farmer', label: 'Farmer' },
+    { href: '/processor', label: 'Processor' },
+    { href: '/retailer', label: 'Retailer' },
+    { href: '/inspector', label: 'Inspector' },
+    { href: '/location', label: 'Tracking' },
+    { href: '/admin', label: 'Admin' },
+    { href: '/consumer', label: 'Verify' },
+  ];
+
   return (
     <motion.nav
-      className="glass fixed top-0 left-0 right-0 z-50 px-6 py-4"
-      initial={{ y: -100 }}
-      animate={{ y: 0 }}
-      transition={{ duration: 0.5 }}
+      className="navbar-liquid-glass"
+      initial={{ y: -100, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      transition={{ duration: 0.5, ease: 'easeOut' }}
     >
-      <div className="max-w-7xl mx-auto flex items-center justify-between">
-        {/* Logo */}
-        <Link href="/" className="flex items-center gap-2 group">
-          <FaLeaf className="text-primary-400 text-3xl group-hover:rotate-12 transition-transform" />
-          <span className="text-2xl font-bold gradient-text">
-            OrganicChain
-          </span>
-        </Link>
+      <div className="navbar-container">
+        {/* Logo Section */}
+        <motion.div
+          className="navbar-logo"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          <Link href="/" className="flex items-center gap-2">
+            <div className="navbar-logo-icon">
+              <FaLeaf className="text-emerald-400" />
+            </div>
+            <span className="navbar-logo-text hidden sm:inline">OrganicChain</span>
+          </Link>
+        </motion.div>
 
         {/* Navigation Links */}
-        <div className="hidden md:flex items-center gap-6">
-          <Link href="/farmer" className="nav-link hover:text-primary-400 transition-colors">
-            Farmer
-          </Link>
-          <Link href="/processor" className="nav-link hover:text-primary-400 transition-colors">
-            Processor
-          </Link>
-          <Link href="/retailer" className="nav-link hover:text-primary-400 transition-colors">
-            Retailer
-          </Link>
-          <Link href="/inspector" className="nav-link hover:text-primary-400 transition-colors">
-            Inspector
-          </Link>
-          <Link href="/location" className="nav-link hover:text-primary-400 transition-colors">
-            📍 Tracking
-          </Link>
-          <Link href="/admin" className="nav-link hover:text-primary-400 transition-colors">
-            Admin
-          </Link>
-          <Link href="/consumer" className="nav-link hover:text-primary-400 transition-colors">
-            Verify Product
-          </Link>
+        <div className="navbar-links">
+          {navLinks.map((link) => (
+            <motion.div key={link.href} whileHover={{ y: -2 }} whileTap={{ y: 0 }}>
+              <Link href={link.href} className="navbar-link">
+                {link.label}
+              </Link>
+            </motion.div>
+          ))}
         </div>
 
-        {/* Wallet Connection */}
-        <div>
+        {/* Wallet Connection Section */}
+        <div className="navbar-actions">
           {account ? (
             <motion.div
-              className="glass-button flex items-center gap-2"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
+              className="navbar-wallet-button"
+              whileHover={{ scale: 1.05, y: -2 }}
+              whileTap={{ scale: 0.95, y: 0 }}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.3 }}
             >
-              <FaUser className="text-sm" />
+              <FaUser className="text-white text-sm" />
               <span>{formatAddress(account)}</span>
             </motion.div>
           ) : (
             <motion.button
               onClick={handleConnect}
               disabled={isConnecting}
-              className="glass-button flex items-center gap-2"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
+              className={`navbar-wallet-button ${isConnecting ? 'disabled' : ''}`}
+              whileHover={{ scale: 1.05, y: -2 }}
+              whileTap={{ scale: 0.95, y: 0 }}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.3 }}
             >
-              <FaWallet />
-              <span>{isConnecting ? 'Connecting...' : 'Connect Wallet'}</span>
+              <FaWallet className="text-white text-sm" />
+              <span>{isConnecting ? 'Connecting...' : 'Connect'}</span>
             </motion.button>
           )}
         </div>

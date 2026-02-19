@@ -180,25 +180,27 @@ const RetailerDashboard: React.FC = () => {
     <div className="space-y-6">
       {/* Wallet Connection Warning */}
       {!account && (
-        <div className="bg-yellow-900/30 border border-yellow-600/50 rounded-lg p-4 flex items-start gap-3">
-          <div className="text-yellow-500 text-xl">⚠️</div>
-          <div>
-            <h3 className="text-yellow-400 font-semibold mb-1">Wallet Not Connected</h3>
-            <p className="text-yellow-200/80 text-sm">
-              Please connect your MetaMask wallet to use the Retailer Dashboard.
-              You need an account with RETAILER_ROLE.
-            </p>
+        <div className="glass-card border border-orange-500/30 bg-amber-950/20">
+          <div className="flex items-start gap-4">
+            <div className="text-orange-400 text-2xl mt-1">⚠️</div>
+            <div>
+              <h3 className="text-orange-300 font-bold text-lg mb-2">Wallet Not Connected</h3>
+              <p className="text-gray-300 text-sm">
+                Please connect your MetaMask wallet to use the Retailer Dashboard.
+                You need an account with <span className="font-mono text-orange-300">RETAILER_ROLE</span>.
+              </p>
+            </div>
           </div>
         </div>
       )}
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-4xl font-bold gradient-text mb-2">Retailer Dashboard</h1>
-          <p className="text-gray-400">Receive and manage organic products</p>
+          <h1 className="text-5xl font-bold gradient-text mb-2">🛒 Retailer Dashboard</h1>
+          <p className="text-gray-400 text-lg">Receive and manage organic products</p>
           {account && (
-            <p className="text-sm text-gray-500 mt-1">
-              Connected: <span className="text-primary-400 font-mono">{account.slice(0, 6)}...{account.slice(-4)}</span>
+            <p className="text-sm text-gray-500 mt-2">
+              Connected: <span className="text-emerald-400 font-mono">{account.slice(0, 6)}...{account.slice(-4)}</span>
             </p>
           )}
         </div>
@@ -208,11 +210,11 @@ const RetailerDashboard: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <GlassCard>
           <div className="flex items-center gap-4">
-            <div className="text-4xl text-primary-400">
+            <div className="text-4xl text-cyan-400">
               <FaClock />
             </div>
             <div>
-              <p className="text-gray-400 text-sm">Incoming Transfers</p>
+              <p className="text-gray-400 text-sm font-medium">Incoming Transfers</p>
               <p className="text-3xl font-bold">{incomingProducts.length}</p>
             </div>
           </div>
@@ -220,11 +222,11 @@ const RetailerDashboard: React.FC = () => {
 
         <GlassCard>
           <div className="flex items-center gap-4">
-            <div className="text-4xl text-green-400">
+            <div className="text-4xl text-emerald-400">
               <FaStore />
             </div>
             <div>
-              <p className="text-gray-400 text-sm">In Stock</p>
+              <p className="text-gray-400 text-sm font-medium">In Stock</p>
               <p className="text-3xl font-bold">
                 {inStockProducts.length}
               </p>
@@ -234,11 +236,11 @@ const RetailerDashboard: React.FC = () => {
 
         <GlassCard>
           <div className="flex items-center gap-4">
-            <div className="text-4xl text-yellow-400">
+            <div className="text-4xl text-orange-400">
               <FaCheckCircle />
             </div>
             <div>
-              <p className="text-gray-400 text-sm">Expiring Soon</p>
+              <p className="text-gray-400 text-sm font-medium">Expiring Soon</p>
               <p className="text-3xl font-bold">
                 {inStockProducts.filter((p: any) => isExpiringSoon(p.expiryDate)).length}
               </p>
@@ -250,11 +252,11 @@ const RetailerDashboard: React.FC = () => {
       {/* Products to Receive */}
       <div className="space-y-6">
         <div>
-          <h2 className="text-2xl font-bold mb-4">Incoming Transfers - Action Required</h2>
+          <h2 className="text-3xl font-bold mb-6 gradient-text">📦 Incoming Transfers - Action Required</h2>
           {loadingProducts ? (
             <GlassCard>
               <div className="text-center py-12">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-400 mx-auto mb-4"></div>
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-400 mx-auto mb-4"></div>
                 <p className="text-gray-400">Loading products...</p>
               </div>
             </GlassCard>
@@ -262,7 +264,7 @@ const RetailerDashboard: React.FC = () => {
             <GlassCard>
               <div className="text-center py-12">
                 <FaTruck className="text-6xl text-gray-600 mx-auto mb-4" />
-                <p className="text-gray-400">No incoming transfers at this time</p>
+                <p className="text-gray-300 font-medium">No incoming transfers at this time</p>
               </div>
             </GlassCard>
           ) : (
@@ -321,11 +323,11 @@ const RetailerDashboard: React.FC = () => {
 
         {/* Products In Stock */}
         <div>
-          <h2 className="text-2xl font-bold mb-4">Products In Stock</h2>
+          <h2 className="text-3xl font-bold mb-6 gradient-text">📦 Products In Stock</h2>
           {loadingProducts ? (
             <GlassCard>
               <div className="text-center py-12">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-400 mx-auto mb-4"></div>
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-400 mx-auto mb-4"></div>
                 <p className="text-gray-400">Loading products...</p>
               </div>
             </GlassCard>
@@ -333,7 +335,8 @@ const RetailerDashboard: React.FC = () => {
             <GlassCard>
               <div className="text-center py-12">
                 <FaBoxOpen className="text-6xl text-gray-600 mx-auto mb-4" />
-                <p className="text-gray-400">No products in stock yet</p>
+                <p className="text-gray-300 font-medium">No products in stock yet</p>
+                <p className="text-gray-500 text-sm mt-2">Accept incoming transfers to add products</p>
               </div>
             </GlassCard>
           ) : (

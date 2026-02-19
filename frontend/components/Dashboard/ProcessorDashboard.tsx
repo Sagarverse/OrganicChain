@@ -187,14 +187,16 @@ const ProcessorDashboard: React.FC = () => {
     <div className="space-y-6">
       {/* Wallet Connection Warning */}
       {!account && (
-        <div className="bg-yellow-900/30 border border-yellow-600/50 rounded-lg p-4 flex items-start gap-3">
-          <div className="text-yellow-500 text-xl">⚠️</div>
-          <div>
-            <h3 className="text-yellow-400 font-semibold mb-1">Wallet Not Connected</h3>
-            <p className="text-yellow-200/80 text-sm">
-              Please connect your MetaMask wallet to use the Processor Dashboard.
-              You need an account with PROCESSOR_ROLE.
-            </p>
+        <div className="glass-card border border-orange-500/30 bg-amber-950/20">
+          <div className="flex items-start gap-4">
+            <div className="text-orange-400 text-2xl mt-1">⚠️</div>
+            <div>
+              <h3 className="text-orange-300 font-bold text-lg mb-2">Wallet Not Connected</h3>
+              <p className="text-gray-300 text-sm">
+                Please connect your MetaMask wallet to use the Processor Dashboard.
+                You need an account with <span className="font-mono text-orange-300">PROCESSOR_ROLE</span>.
+              </p>
+            </div>
           </div>
         </div>
       )}
@@ -202,11 +204,11 @@ const ProcessorDashboard: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-4xl font-bold gradient-text mb-2">Processor Dashboard</h1>
-          <p className="text-gray-400">Process and package organic products</p>
+          <h1 className="text-5xl font-bold gradient-text mb-2">🏭 Processor Dashboard</h1>
+          <p className="text-gray-400 text-lg">Process and package organic products</p>
           {account && (
-            <p className="text-sm text-gray-500 mt-1">
-              Connected: <span className="text-primary-400 font-mono">{account.slice(0, 6)}...{account.slice(-4)}</span>
+            <p className="text-sm text-gray-500 mt-2">
+              Connected: <span className="text-emerald-400 font-mono">{account.slice(0, 6)}...{account.slice(-4)}</span>
             </p>
           )}
         </div>
@@ -216,11 +218,11 @@ const ProcessorDashboard: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <GlassCard>
           <div className="flex items-center gap-4">
-            <div className="text-4xl text-primary-400">
+            <div className="text-4xl text-emerald-400">
               <FaBoxOpen />
             </div>
             <div>
-              <p className="text-gray-400 text-sm">Total Products</p>
+              <p className="text-gray-400 text-sm font-medium">Total Products</p>
               <p className="text-3xl font-bold">{products.length}</p>
             </div>
           </div>
@@ -228,11 +230,11 @@ const ProcessorDashboard: React.FC = () => {
 
         <GlassCard>
           <div className="flex items-center gap-4">
-            <div className="text-4xl text-blue-400">
+            <div className="text-4xl text-cyan-400">
               <FaIndustry />
             </div>
             <div>
-              <p className="text-gray-400 text-sm">Ready to Process</p>
+              <p className="text-gray-400 text-sm font-medium">Ready to Process</p>
               <p className="text-3xl font-bold">
                 {availableProducts.length}
               </p>
@@ -242,11 +244,11 @@ const ProcessorDashboard: React.FC = () => {
 
         <GlassCard>
           <div className="flex items-center gap-4">
-            <div className="text-4xl text-green-400">
+            <div className="text-4xl text-orange-400">
               <FaThermometerHalf />
             </div>
             <div>
-              <p className="text-gray-400 text-sm">Processing</p>
+              <p className="text-gray-400 text-sm font-medium">Processing</p>
               <p className="text-3xl font-bold">
                 {products.filter((p: any) => Number(p.status) === 2).length}
               </p>
@@ -258,11 +260,11 @@ const ProcessorDashboard: React.FC = () => {
       {/* Products List */}
       <div className="space-y-8">
         <div>
-          <h2 className="text-2xl font-bold mb-4">Products Available for Processing</h2>
+          <h2 className="text-3xl font-bold mb-6 gradient-text">📦 Products Available for Processing</h2>
           {loadingProducts ? (
             <GlassCard>
               <div className="text-center py-12">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-400 mx-auto mb-4"></div>
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-400 mx-auto mb-4"></div>
                 <p className="text-gray-400">Loading products...</p>
               </div>
             </GlassCard>
@@ -270,7 +272,8 @@ const ProcessorDashboard: React.FC = () => {
             <GlassCard>
               <div className="text-center py-12">
                 <FaIndustry className="text-6xl text-gray-600 mx-auto mb-4" />
-                <p className="text-gray-400 mb-4">No harvested products available</p>
+                <p className="text-gray-300 font-medium mb-2">No harvested products available</p>
+                <p className="text-gray-500 text-sm">Check back once farmers have harvested their products</p>
               </div>
             </GlassCard>
           ) : (
@@ -313,11 +316,11 @@ const ProcessorDashboard: React.FC = () => {
         </div>
 
         <div>
-          <h2 className="text-2xl font-bold mb-4">Processed Batches Ready to Transfer</h2>
+          <h2 className="text-3xl font-bold mb-6 gradient-text">✨ Processed Batches Ready to Transfer</h2>
           {loadingProducts ? (
             <GlassCard>
               <div className="text-center py-12">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-400 mx-auto mb-4"></div>
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-400 mx-auto mb-4"></div>
                 <p className="text-gray-400">Loading products...</p>
               </div>
             </GlassCard>

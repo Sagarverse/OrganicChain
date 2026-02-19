@@ -66,23 +66,23 @@ export default function ConsumerVerificationPage() {
           animate={{ opacity: 1, y: 0 }}
           className="text-center"
         >
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-xs text-gray-500">Organic Supply Chain</span>
+          <div className="flex items-center justify-between mb-6">
+            <span className="text-xs text-gray-500 font-medium">ORGANIC SUPPLY CHAIN</span>
             <button
               type="button"
-              className="md:hidden text-gray-300 text-sm"
+              className="md:hidden text-gray-300 text-sm hover:text-gray-200 transition-colors"
               data-cy="mobile-menu"
             >
               Menu
             </button>
           </div>
-          <div className="flex justify-center mb-4">
-            <div className="text-6xl text-primary-400">
+          <div className="flex justify-center mb-6">
+            <div className="text-6xl text-emerald-400">
               <FaQrcode />
             </div>
           </div>
-          <h1 className="text-4xl font-bold gradient-text mb-2">Verify Product</h1>
-          <p className="text-gray-400">Scan a QR code or enter a product ID to verify authenticity</p>
+          <h1 className="text-5xl font-bold gradient-text mb-3">🔍 Verify Product</h1>
+          <p className="text-gray-300 text-lg">Scan a QR code or enter a product ID to verify authenticity and supply chain</p>
         </motion.div>
 
         {/* QR Scanner Card */}
@@ -94,7 +94,7 @@ export default function ConsumerVerificationPage() {
           <GlassCard>
             <div className="text-center">
               <h2 className="text-2xl font-bold mb-6 flex items-center justify-center gap-3">
-                <FaCamera className="text-primary-400" />
+                <FaCamera className="text-cyan-400" />
                 Scan QR Code
               </h2>
 
@@ -144,7 +144,7 @@ export default function ConsumerVerificationPage() {
               )}
 
               {scanError && (
-                <div className="mt-4 p-3 bg-red-900/30 border border-red-600/50 rounded-lg text-red-400">
+                <div className="mt-4 glass-card border border-red-500/30 bg-red-950/20 text-red-300">
                   {scanError}
                 </div>
               )}
@@ -155,7 +155,7 @@ export default function ConsumerVerificationPage() {
         {/* Divider */}
         <div className="flex items-center gap-4">
           <div className="flex-1 h-px bg-gray-700"></div>
-          <span className="text-gray-500 font-semibold">OR</span>
+          <span className="text-gray-400 font-semibold text-sm">OR</span>
           <div className="flex-1 h-px bg-gray-700"></div>
         </div>
 
@@ -168,7 +168,7 @@ export default function ConsumerVerificationPage() {
           <GlassCard>
             <div className="text-center">
               <h2 className="text-2xl font-bold mb-6 flex items-center justify-center gap-3">
-                <FaSearch className="text-primary-400" />
+                <FaSearch className="text-cyan-400" />
                 Enter Product ID
               </h2>
 

@@ -24,7 +24,9 @@ import {
   flagTamper,
   checkRole,
   getCurrentAccount,
-  grantRole
+  grantRole,
+  hasAdminRole,
+  grantAdminRole
 } from '../../utils/blockchain';
 import { PRODUCT_STATUS } from '../../utils/constants';
 
@@ -69,6 +71,8 @@ const AdminDashboard: React.FC = () => {
   const [batches, setBatches] = useState<Batch[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [hasDeletePermission, setHasDeletePermission] = useState(false);
+  const [currentAccount, setCurrentAccount] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [confirmModal, setConfirmModal] = useState<ConfirmModal>({
     isOpen: false,
@@ -108,8 +112,11 @@ const AdminDashboard: React.FC = () => {
     try {
       const account = await getCurrentAccount();
       if (account) {
-        const hasAdminRole = await checkRole(account, 'ADMIN');
-        setIsAdmin(hasAdminRole);
+        setCurrentAccount(account);
+        const hasAdminPerm = await hasAdminRole(account);
+        const hasAdminCheck = await checkRole(account, 'ADMIN');
+        setHasDeletePermission(hasAdminPerm);
+        setIsAdmin(hasAdminCheck);
       }
     } catch (error) {
       console.error('Error checking admin role:', error);
@@ -134,24 +141,45 @@ const AdminDashboard: React.FC = () => {
   };
 
   const handleDeleteProduct = async (productId: number) => {
+    if (!hasDeletePermission) {
+      alert('❌ Delete Permission Required\n\nYou do not have DEFAULT_ADMIN_ROLE permission to delete products.\n\nTo grant yourself admin access:\n1. Click "Request Admin Access" button below\n2. Wait for the transaction to confirm\n3. Try deleting again\n\nNote: Requires current admin to approve the transaction.');
+      return;
+    }
+
     try {
       await deleteProduct(productId);
       setConfirmModal({ isOpen: false, type: 'product', id: 0 });
       loadData(); // Reload data
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting product:', error);
-      alert('Failed to delete product. You may not have permission.');
+      
+      // Check if it's an authorization error
+      if (error.data === '0x08c379a0' || error.message?.includes('AccessControl') || error.message?.includes('DEFAULT_ADMIN')) {
+        alert('❌ Delete Failed: You do not have DEFAULT_ADMIN_ROLE.\n\nTo fix this:\n1. Click "Request Admin Access" to grant your account admin privileges\n2. Or use the deployer account (the one that deployed the contract)\n\nPermissions are required for this action.');
+      } else {
+        alert('Failed to delete product. ' + (error.message || 'You may not have permission.'));
+      }
     }
   };
 
   const handleDeleteBatch = async (batchId: number) => {
+    if (!hasDeletePermission) {
+      alert('❌ Delete Permission Required\n\nYou do not have DEFAULT_ADMIN_ROLE permission to delete batches.\n\nTo grant yourself admin access:\n1. Click "Request Admin Access" button below\n2. Wait for the transaction to confirm\n3. Try deleting again\n\nNote: Requires current admin to approve the transaction.');
+      return;
+    }
+
     try {
       await deleteBatch(batchId);
       setConfirmModal({ isOpen: false, type: 'batch', id: 0 });
       loadData();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting batch:', error);
-      alert('Failed to delete batch. You may not have permission.');
+      
+      if (error.data === '0x08c379a0' || error.message?.includes('AccessControl') || error.message?.includes('DEFAULT_ADMIN')) {
+        alert('❌ Delete Failed: You do not have DEFAULT_ADMIN_ROLE.\n\nTo fix this:\n1. Click "Request Admin Access" to grant your account admin privileges\n2. Or use the deployer account (the one that deployed the contract)');
+      } else {
+        alert('Failed to delete batch. ' + (error.message || 'You may not have permission.'));
+      }
     }
   };
 
@@ -185,6 +213,43 @@ const AdminDashboard: React.FC = () => {
     } catch (error) {
       console.error('Error flagging tamper:', error);
       alert('Failed to flag tamper. You may not have permission.');
+    }
+  };
+
+  const handleRequestAdminAccess = async () => {
+    if (!currentAccount) {
+      alert('❌ No wallet connected. Please connect your wallet first.');
+      return;
+    }
+
+    if (hasDeletePermission) {
+      alert('✅ You already have DEFAULT_ADMIN_ROLE permission!');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Request admin access for account: ${currentAccount}\n\n` +
+      `This will grant you DEFAULT_ADMIN_ROLE, allowing you to:\n` +
+      `• Delete products\n` +
+      `• Delete batches\n` +
+      `• Manage system-wide settings\n\n` +
+      `Continue?`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      console.log('[AdminDashboard] Requesting admin access for:', currentAccount);
+      await grantAdminRole(currentAccount);
+      alert('✅ Admin access granted! You can now delete products and batches.\n\nRefreshing permissions...');
+      await checkAdminRole();
+    } catch (error: any) {
+      console.error('Error granting admin role:', error);
+      if (error.message?.includes('AccessControl')) {
+        alert('❌ Failed to grant admin access.\n\nOnly the current admin (deployer) can grant admin roles.\n\nSolution:\n1. Switch to the deployer account in MetaMask\n2. Try again\n\nDeployer is the account that deployed the contract.');
+      } else {
+        alert('❌ Failed to grant admin access: ' + (error.message || 'Permission denied'));
+      }
     }
   };
 
@@ -311,6 +376,45 @@ const AdminDashboard: React.FC = () => {
             Create New User
           </motion.button>
         </motion.div>
+
+        {/* Admin Permission Status */}
+        {!hasDeletePermission && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-8 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border border-yellow-500/50 rounded-lg p-6 flex items-center justify-between"
+          >
+            <div className="flex items-center gap-4">
+              <FaExclamationTriangle className="text-yellow-400 text-2xl" />
+              <div>
+                <h3 className="text-yellow-100 font-semibold mb-1">⚠️ Limited Permissions</h3>
+                <p className="text-yellow-200 text-sm">You do not have DEFAULT_ADMIN_ROLE. You cannot delete products or batches.</p>
+              </div>
+            </div>
+            <motion.button
+              onClick={handleRequestAdminAccess}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white font-semibold px-6 py-2 rounded-lg whitespace-nowrap flex-shrink-0 ml-4"
+            >
+              Request Admin Access
+            </motion.button>
+          </motion.div>
+        )}
+
+        {hasDeletePermission && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-8 bg-gradient-to-r from-green-500/20 to-emerald-500/20 border border-green-500/50 rounded-lg p-6 flex items-center gap-4"
+          >
+            <FaCheckCircle className="text-green-400 text-2xl" />
+            <div>
+              <h3 className="text-green-100 font-semibold">✅ Full Admin Access</h3>
+              <p className="text-green-200 text-sm">You have DEFAULT_ADMIN_ROLE. You can delete products, batches, and manage all system operations.</p>
+            </div>
+          </motion.div>
+        )}
 
         {/* Statistics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">

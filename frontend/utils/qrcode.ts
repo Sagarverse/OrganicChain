@@ -128,7 +128,10 @@ export const downloadProductQRCode = async (
     const blobUrl = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = blobUrl;
-    link.download = `${productName.replace(/\s+/g, '-')}-product-${productId}.png`;
+    
+    // Safely handle product name - fallback to productId if name is undefined/empty
+    const sanitizedName = (productName || `product`).replace(/\s+/g, '-').replace(/[^a-z0-9\-]/gi, '');
+    link.download = `${sanitizedName}-qr-code-${productId}.png`;
     
     document.body.appendChild(link);
     link.click();
