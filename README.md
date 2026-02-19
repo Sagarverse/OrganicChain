@@ -1,3 +1,15 @@
+npx hardhat run scripts/deploy.ts --network localhost
+
+
+cd /Users/sagarm/Workstation/Blockchain/frontend && npm run dev
+
+
+
+
+
+
+
+
 # 🌿 OrganicChain - Verifiable Supply Chain Traceability System
 
 
