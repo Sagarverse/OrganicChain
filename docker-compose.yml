@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  # Hardhat Local Node
+  hardhat-node:
+    build:
+      context: ./blockchain
+      dockerfile: Dockerfile
+    container_name: organicchain-hardhat
+    ports:
+      - "8545:8545"
+    networks:
+      - organicchain-network
+    volumes:
+      - ./blockchain:/app
+    command: npx hardhat node
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: organicchain-frontend
+    ports:
+      - "3000:3000"
+    networks:
+      - organicchain-network
+    environment:
+      - NEXT_PUBLIC_CONTRACT_ADDRESS=${CONTRACT_ADDRESS}
+      - NEXT_PUBLIC_CHAIN_ID=1337
+      - NEXT_PUBLIC_RPC_URL=http://hardhat-node:8545
+    depends_on:
+      - hardhat-node
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    command: npm run dev
+
+networks:
+  organicchain-network:
+    driver: bridge

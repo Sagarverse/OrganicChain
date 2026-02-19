@@ -1,0 +1,164 @@
+name: Smart Contract CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'blockchain/**'
+      - '.github/workflows/test.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'blockchain/**'
+
+jobs:
+  test-contracts:
+    name: Test Smart Contracts
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: blockchain/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd blockchain
+          npm ci
+
+      - name: Compile contracts
+        run: |
+          cd blockchain
+          npx hardhat compile
+
+      - name: Run tests
+        run: |
+          cd blockchain
+          npx hardhat test
+
+      - name: Generate coverage report
+        run: |
+          cd blockchain
+          npx hardhat coverage || true
+
+      - name: Check contract size
+        run: |
+          cd blockchain
+          npx hardhat size-contracts || echo "Size check not configured"
+
+  lint-contracts:
+    name: Lint Solidity Code
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: blockchain/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd blockchain
+          npm ci
+
+      - name: Run Solhint
+        run: |
+          cd blockchain
+          npx solhint 'contracts/**/*.sol' || true
+
+  security-check:
+    name: Security Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: blockchain/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd blockchain
+          npm ci
+
+      - name: Run Slither (if available)
+        run: |
+          cd blockchain
+          pip install slither-analyzer || true
+          slither . || echo "Slither not configured"
+        continue-on-error: true
+
+  deploy-test:
+    name: Test Deployment
+    runs-on: ubuntu-latest
+    needs: [test-contracts]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: blockchain/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd blockchain
+          npm ci
+
+      - name: Start local Hardhat node
+        run: |
+          cd blockchain
+          npx hardhat node &
+          sleep 10
+
+      - name: Deploy contracts to local network
+        run: |
+          cd blockchain
+          npx hardhat run scripts/deploy.ts --network localhost
+
+      - name: Verify deployment
+        run: |
+          cd blockchain
+          test -f deployed.json && echo "✓ Deployment successful" || exit 1
+
+  notification:
+    name: Notify Results
+    runs-on: ubuntu-latest
+    needs: [test-contracts, lint-contracts, deploy-test]
+    if: always()
+
+    steps:
+      - name: Check job status
+        run: |
+          echo "Tests: ${{ needs.test-contracts.result }}"
+          echo "Lint: ${{ needs.lint-contracts.result }}"
+          echo "Deploy: ${{ needs.deploy-test.result }}"
+          
+          if [[ "${{ needs.test-contracts.result }}" == "success" ]] && \
+             [[ "${{ needs.lint-contracts.result }}" == "success" ]] && \
+             [[ "${{ needs.deploy-test.result }}" == "success" ]]; then
+            echo "✅ All checks passed!"
+          else
+            echo "❌ Some checks failed"
+            exit 1
+          fi
