@@ -26,7 +26,9 @@ import {
   getCurrentAccount,
   grantRole,
   hasAdminRole,
-  grantAdminRole
+  grantAdminRole,
+  deleteProductWithDiagnostics,
+  isContractPaused
 } from '../../utils/blockchain';
 import { PRODUCT_STATUS } from '../../utils/constants';
 
@@ -147,17 +149,27 @@ const AdminDashboard: React.FC = () => {
     }
 
     try {
-      await deleteProduct(productId);
+      // Use enhanced delete with diagnostics
+      await deleteProductWithDiagnostics(productId);
       setConfirmModal({ isOpen: false, type: 'product', id: 0 });
+      alert('✅ Product deleted successfully!');
       loadData(); // Reload data
     } catch (error: any) {
       console.error('Error deleting product:', error);
       
-      // Check if it's an authorization error
-      if (error.data === '0x08c379a0' || error.message?.includes('AccessControl') || error.message?.includes('DEFAULT_ADMIN')) {
-        alert('❌ Delete Failed: You do not have DEFAULT_ADMIN_ROLE.\n\nTo fix this:\n1. Click "Request Admin Access" to grant your account admin privileges\n2. Or use the deployer account (the one that deployed the contract)\n\nPermissions are required for this action.');
+      // Check for custom contract errors
+      const errorMessage = error.message || error.reason || 'Unknown error';
+      
+      if (errorMessage.includes('CONTRACT_PAUSED') || errorMessage.includes('Pausable')) {
+        alert('❌ Contract is Paused\n\nThe contract is currently paused.\n\nSolution:\n1. Contact the contract admin\n2. Ask them to unpause the contract\n3. Then try deleting again\n\nOnly the admin can unpause the contract.');
+      } else if (errorMessage.includes('NO_ADMIN_ROLE') || errorMessage.includes('AccessControl')) {
+        alert('❌ You do not have admin permissions\n\nYour account does not have DEFAULT_ADMIN_ROLE.\n\nNext steps:\n1. Click "Request Admin Access" button\n2. The current admin must approve the transaction\n3. Try deleting again after approval');
+      } else if (errorMessage.includes('PRODUCT_NOT_FOUND') || errorMessage.includes('ProductNotFound')) {
+        alert('❌ Product does not exist\n\nThis product has already been deleted or does not exist.\n\nCheck the product ID and try again.');
+      } else if (errorMessage.includes('onlyRole') || errorMessage.includes('0x340ae94a')) {
+        alert('❌ You do not have permission to delete\n\nReason: Missing DEFAULT_ADMIN_ROLE\n\nTo grant yourself admin:\n1. Use "Request Admin Access" button\n2. Wait for current admin to approve\n3. Try again');
       } else {
-        alert('Failed to delete product. ' + (error.message || 'You may not have permission.'));
+        alert('❌ Failed to delete product\n\nError: ' + errorMessage);
       }
     }
   };
@@ -171,14 +183,21 @@ const AdminDashboard: React.FC = () => {
     try {
       await deleteBatch(batchId);
       setConfirmModal({ isOpen: false, type: 'batch', id: 0 });
+      alert('✅ Batch deleted successfully!');
       loadData();
     } catch (error: any) {
       console.error('Error deleting batch:', error);
       
-      if (error.data === '0x08c379a0' || error.message?.includes('AccessControl') || error.message?.includes('DEFAULT_ADMIN')) {
-        alert('❌ Delete Failed: You do not have DEFAULT_ADMIN_ROLE.\n\nTo fix this:\n1. Click "Request Admin Access" to grant your account admin privileges\n2. Or use the deployer account (the one that deployed the contract)');
+      const errorMessage = error.message || error.reason || 'Unknown error';
+      
+      if (errorMessage.includes('CONTRACT_PAUSED') || errorMessage.includes('Pausable')) {
+        alert('❌ Contract is Paused\n\nThe contract is currently paused.\n\nSolution: Contact the admin to unpause the contract.');
+      } else if (errorMessage.includes('NO_ADMIN_ROLE') || errorMessage.includes('AccessControl')) {
+        alert('❌ You do not have permission to delete\n\nClick "Request Admin Access" to grant your account admin privileges.');
+      } else if (errorMessage.includes('BATCH_NOT_FOUND') || errorMessage.includes('BatchNotFound')) {
+        alert('❌ Batch does not exist\n\nThis batch has already been deleted or does not exist.');
       } else {
-        alert('Failed to delete batch. ' + (error.message || 'You may not have permission.'));
+        alert('❌ Failed to delete batch\n\nError: ' + errorMessage);
       }
     }
   };

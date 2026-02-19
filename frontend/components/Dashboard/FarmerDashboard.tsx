@@ -307,12 +307,34 @@ const FarmerDashboard: React.FC = () => {
 
     try {
       setIsLoading(true);
-      await harvestProduct(Number(product.id), quantity, notes);
+      console.log('[Harvest] Starting harvest for product:', product.id);
+      
+      const receipt = await harvestProduct(Number(product.id), quantity, notes);
+      console.log('[Harvest] Transaction confirmed, receipt:', receipt);
+      
       alert(`✅ Product harvested successfully!\n\nProduct: ${product.name}\nQuantity: ${quantity} kg\n\nThe product is now ready for processing.`);
+      
+      // Wait for blockchain to settle, then reload with retries
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      console.log('[Harvest] Reloading product data...');
       await loadProducts(account, showAllProducts);
+      
+      console.log('[Harvest] Product data reloaded successfully');
     } catch (error: any) {
-      console.error('Error harvesting product:', error);
-      alert(`Failed to harvest product: ${error.message || 'Unknown error'}`);
+      console.error('[Harvest] Error:', error);
+      
+      let errorMessage = `Failed to harvest product`;
+      if (error.message?.includes('0x')) {
+        errorMessage += `: ${error.data || error.message}`;
+      } else if (error.message) {
+        errorMessage += `: ${error.message}`;
+      }
+      if (error.reason) {
+        errorMessage += ` (${error.reason})`;
+      }
+      
+      alert(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -1130,8 +1152,16 @@ const FarmerDashboard: React.FC = () => {
                   <p className="text-xs text-gray-500 mt-1">East/West coordinate</p>
                 </div>
               </div>
+              <Button 
+                onClick={getCurrentLocation}
+                disabled={loadingLocation}
+                variant="secondary"
+                className="w-full mt-3"
+              >
+                {loadingLocation ? '📍 Getting Location...' : '📍 Use Current Location'}
+              </Button>
               <p className="text-xs text-gray-400 mt-2">
-                💡 Tip: Use Google Maps to find your farm's coordinates (right-click → "What's here?")
+                💡 Tip: Click the button above to auto-fill coordinates, or use Google Maps (right-click → "What's here?")
               </p>
             </div>
           </div>

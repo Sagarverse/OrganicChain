@@ -151,24 +151,63 @@ export const downloadProductQRCode = async (
  * Format timestamp to readable date
  */
 export const formatDate = (timestamp: number | string): string => {
-  if (!timestamp || timestamp === '0') return 'Not set';
+  if (!timestamp || timestamp === '0' || timestamp === 0) {
+    return 'Not set';
+  }
   
-  const date = new Date(Number(timestamp) * 1000);
-  return date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric'
-  });
+  try {
+    // Handle both seconds and milliseconds
+    let dateNumber = Number(timestamp);
+    if (isNaN(dateNumber)) {
+      return 'Not set';
+    }
+    
+    // If timestamp is very large, it's probably in milliseconds
+    if (dateNumber > 1000000000000) {
+      dateNumber = Math.floor(dateNumber / 1000);
+    }
+    
+    // Don't allow future dates (likely bad data)
+    const now = Math.floor(Date.now() / 1000);
+    if (dateNumber > now || dateNumber < 0) {
+      return 'Invalid date';
+    }
+    
+    const date = new Date(dateNumber * 1000);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  } catch (error) {
+    console.warn('[formatDate] Error formatting date:', timestamp, error);
+    return 'Not set';
+  }
 };
 
 /**
  * Format GPS coordinates
  */
 export const formatCoordinates = (lat: string, lng: string): string => {
-  if (!lat || !lng || lat === '0' || lng === '0') return 'Not set';
+  if (!lat || !lng || lat === '0' || lng === '0' || lat === '' || lng === '') {
+    return 'Not set';
+  }
   
-  const latitude = parseFloat(lat);
-  const longitude = parseFloat(lng);
-  
-  return `${latitude.toFixed(4)}°, ${longitude.toFixed(4)}°`;
+  try {
+    const latitude = parseFloat(String(lat));
+    const longitude = parseFloat(String(lng));
+    
+    // Validate ranges
+    if (isNaN(latitude) || isNaN(longitude)) {
+      return 'Not set';
+    }
+    if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+      return 'Invalid coordinates';
+    }
+    
+    return `${latitude.toFixed(4)}°, ${longitude.toFixed(4)}°`;
+  } catch (error) {
+    console.warn('[formatCoordinates] Error formatting coordinates:', { lat, lng }, error);
+    return 'Not set';
+  }
 };

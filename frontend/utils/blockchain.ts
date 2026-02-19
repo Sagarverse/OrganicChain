@@ -46,6 +46,45 @@ const ensureNoMockError = (mock: any) => {
 };
 
 /**
+ * Normalize product data to ensure all fields are properly typed and non-null
+ */
+export const normalizeProductData = (product: any): any => {
+  if (!product) return null;
+  
+  const farmLocation = product.farmLocation || {};
+  const latitude = String(farmLocation.latitude || '0').trim();
+  const longitude = String(farmLocation.longitude || '0').trim();
+  
+  return {
+    id: Number(product.id || 0),
+    name: String(product.name || ''),
+    cropType: Number(product.cropType || 0),
+    farmer: String(product.farmer || '0x'),
+    organicCertification: String(product.organicCertification || ''),
+    farmLocation: {
+      latitude: latitude,
+      longitude: longitude,
+      timestamp: Number(farmLocation.timestamp || 0)
+    },
+    plantedDate: Number(product.plantedDate || 0),
+    expectedHarvestDate: Number(product.expectedHarvestDate || 0),
+    harvestDate: Number(product.harvestDate || 0),
+    harvestQuantity: Number(product.harvestQuantity || 0),
+    harvestNotes: String(product.harvestNotes || ''),
+    status: Number(product.status || 0),
+    batchIds: Array.isArray(product.batchIds) ? product.batchIds.map((id: any) => Number(id)) : [],
+    currentCustodian: String(product.currentCustodian || '0x'),
+    transferDate: Number(product.transferDate || 0),
+    receivedDate: Number(product.receivedDate || 0),
+    expiryDate: Number(product.expiryDate || 0),
+    retailPrice: Number(product.retailPrice || 0),
+    retailNotes: String(product.retailNotes || ''),
+    recalled: Boolean(product.recalled || false),
+    authenticityScore: Number(product.authenticityScore || 0)
+  };
+};
+
+/**
  * Get the Ethereum provider from MetaMask
  */
 export const getProvider = (): BrowserProvider | null => {
@@ -199,9 +238,23 @@ export const harvestProduct = async (
   const contract = await getContract(true);
   if (!contract) throw new Error('Contract not available');
 
-  const tx = await contract.harvestProduct(productId, estimatedQuantity, notes);
-  const receipt = await tx.wait();
-  return receipt;
+  console.log('[Harvest] Starting harvest for product', productId, 'quantity:', estimatedQuantity);
+  
+  try {
+    const tx = await contract.harvestProduct(productId, estimatedQuantity, notes);
+    console.log('[Harvest] Transaction sent:', tx.hash);
+    
+    const receipt = await tx.wait();
+    console.log('[Harvest] Transaction confirmed in block:', receipt?.blockNumber);
+    
+    // Wait a bit for blockchain to settle
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    return receipt;
+  } catch (error) {
+    console.error('[Harvest] Error:', error);
+    throw error;
+  }
 };
 
 /**
@@ -402,35 +455,46 @@ export const getProductHistory = async (productId: number) => {
   const contract = await getContract(false);
   if (!contract) throw new Error('Contract not available');
 
-  const [product, batches] = await contract.getProductHistory(productId);
-  
-  // Convert bigint values to numbers for frontend compatibility
-  const convertedProduct = {
-    ...product,
-    id: Number(product.id),
-    cropType: Number(product.cropType),
-    plantedDate: Number(product.plantedDate),
-    expectedHarvestDate: Number(product.expectedHarvestDate),
-    harvestDate: Number(product.harvestDate),
-    harvestQuantity: Number(product.harvestQuantity),
-    status: Number(product.status),
-    batchIds: product.batchIds.map((id: bigint) => Number(id)),
-    transferDate: Number(product.transferDate),
-    receivedDate: Number(product.receivedDate),
-    expiryDate: Number(product.expiryDate),
-    retailPrice: Number(product.retailPrice),
-    authenticityScore: Number(product.authenticityScore),
-    farmLocation: {
-      ...product.farmLocation,
-      latitude: String(product.farmLocation.latitude),
-      longitude: String(product.farmLocation.longitude),
-      timestamp: Number(product.farmLocation.timestamp)
-    }
-  };
-  
-  console.log('[BlockchainUtils] getProductHistory converted product:', convertedProduct);
-  
-  return { product: convertedProduct, batches };
+  try {
+    const [product, batches] = await contract.getProductHistory(productId);
+    
+    console.log('[BlockchainUtils] Raw product from contract:', {
+      id: product.id,
+      name: product.name,
+      farmLocation: product.farmLocation,
+      plantedDate: product.plantedDate,
+      authenticityScore: product.authenticityScore,
+      status: product.status
+    });
+    
+    // Use normalization helper
+    const convertedProduct = normalizeProductData(product);
+    
+    console.log('[BlockchainUtils] Normalized product:', {
+      id: convertedProduct.id,
+      name: convertedProduct.name,
+      plantedDate: convertedProduct.plantedDate,
+      farmLocation: convertedProduct.farmLocation,
+      authenticityScore: convertedProduct.authenticityScore,
+      status: convertedProduct.status
+    });
+    
+    // Convert batches
+    const convertedBatches = (batches || []).map((batch: any) => ({
+      ...batch,
+      batchId: Number(batch.batchId),
+      productId: Number(batch.productId),
+      processedDate: Number(batch.processedDate),
+      quantity: Number(batch.quantity),
+      certificateIds: (batch.certificateIds || []).map((id: any) => Number(id)),
+      status: Number(batch.status || 0)
+    }));
+    
+    return { product: convertedProduct, batches: convertedBatches };
+  } catch (error) {
+    console.error('[BlockchainUtils] Error in getProductHistory:', error);
+    throw error;
+  }
 };
 
 /**
@@ -873,4 +937,119 @@ export const grantAdminRole = async (address: string) => {
  */
 export const hasAdminRole = async (address: string) => {
   return await checkRole(address, 'DEFAULT_ADMIN_ROLE');
+};
+
+/**
+ * Check if the contract is paused
+ */
+export const isContractPaused = async () => {
+  const contract = await getContract();
+  if (!contract) throw new Error('Contract not available');
+
+  try {
+    // Try to call paused() function if it exists
+    if (typeof (contract as any).paused === 'function') {
+      return await (contract as any).paused();
+    }
+    return false;
+  } catch (error) {
+    console.error('Error checking contract pause state:', error);
+    return false;
+  }
+};
+
+/**
+ * Get detailed product information to verify it exists before deletion
+ */
+export const getProductDetails = async (productId: number) => {
+  const contract = await getContract();
+  if (!contract) throw new Error('Contract not available');
+
+  try {
+    const [product] = await contract.getProductHistory(productId);
+    return product;
+  } catch (error) {
+    console.error('Error getting product details:', error);
+    throw error;
+  }
+};
+
+/**
+ * Delete a product with enhanced error handling and diagnostics
+ */
+export const deleteProductWithDiagnostics = async (productId: number) => {
+  const contract = await getContract(true);
+  if (!contract) throw new Error('Contract not available');
+
+  try {
+    // Get current account
+    const account = await getCurrentAccount();
+    
+    if (!account) {
+      throw new Error('NO_ACCOUNT: No wallet connected. Please connect your wallet first.');
+    }
+    
+    // Check 1: Verify contract is not paused
+    console.log('[DeleteProduct] Checking contract pause state...');
+    const paused = await isContractPaused();
+    if (paused) {
+      throw new Error('CONTRACT_PAUSED: The contract is paused. Admin must unpause it before deletion.');
+    }
+    
+    // Check 2: Verify account has admin role
+    console.log('[DeleteProduct] Checking admin role for:', account);
+    const hasAdmin = await hasAdminRole(account);
+    if (!hasAdmin) {
+      throw new Error('NO_ADMIN_ROLE: Your account does not have DEFAULT_ADMIN_ROLE. Request admin access first.');
+    }
+    
+    // Check 3: Try to get product details for logging (don't fail if product doesn't exist)
+    console.log('[DeleteProduct] Checking product details...', productId);
+    try {
+      const product = await getProductDetails(productId);
+      if (product && product.farmer !== ethers.ZeroAddress) {
+        console.log('[DeleteProduct] Product found:', {
+          id: productId,
+          name: product.name,
+          farmer: product.farmer,
+          status: Number(product.status)
+        });
+      } else {
+        console.warn('[DeleteProduct] Product not found or already deleted');
+      }
+    } catch (detailError) {
+      console.warn('[DeleteProduct] Could not retrieve product details:', detailError);
+    }
+    
+    // Perform deletion - let the contract handle validation, we just provide admin checks
+    console.log('[DeleteProduct] Proceeding with deletion of product', productId);
+    const tx = await contract.deleteProduct(productId);
+    console.log('[DeleteProduct] Transaction sent:', tx.hash);
+    
+    const receipt = await tx.wait();
+    console.log('[DeleteProduct] Transaction confirmed:', receipt?.blockNumber);
+    
+    return tx;
+  } catch (error: any) {
+    console.error('[DeleteProduct] Error:', error);
+    
+    // Parse error message for specific issues
+    if (error.message?.includes('CONTRACT_PAUSED')) {
+      throw new Error('❌ Contract is Paused\n\nThe contract is currently paused and no operations can be performed.\n\nSolution: Contact the contract admin to unpause it.');
+    }
+    if (error.message?.includes('NO_ADMIN_ROLE')) {
+      throw new Error('❌ No Admin Role\n\nYour account does not have DEFAULT_ADMIN_ROLE.\n\nSolution: Click "Request Admin Access" and have the current admin approve it.');
+    }
+    if (error.message?.includes('PRODUCT_NOT_FOUND') || error.message?.includes('ProductNotFound')) {
+      throw new Error('❌ Product Not Found\n\nThe product has already been deleted or does not exist.\n\nYou can only delete a product once. Check the product ID and try again.');
+    }
+    if (error.message?.includes('InvalidProductId')) {
+      throw new Error('❌ Invalid Product ID\n\nThe product ID you entered is invalid or out of range.\n\nCheck that the product ID is correct and try again.');
+    }
+    if (error.code === 'CALL_EXCEPTION' || error.reason === 'reverted') {
+      throw new Error('❌ Deletion Failed\n\nThe contract rejected the deletion.\n\nPossible reasons:\n• Product already deleted\n• Invalid product ID\n• Contract is paused\n\nTry refreshing the page and checking if the product is still in the list.');
+    }
+    
+    throw error;
+  }
 };

@@ -423,7 +423,7 @@ const RetailerDashboard: React.FC = () => {
 
       {/* Receive Product Modal */}
       <Modal isOpen={isReceiveModalOpen} onClose={() => setIsReceiveModalOpen(false)} title="Accept Delivery">
-        <form onSubmit={handleReceiveProduct} className="space-y-4">
+        <form onSubmit={handleReceiveProduct} className="space-y-4 max-h-[70vh] overflow-y-auto pr-3">
           <div className="bg-primary-500/10 border border-primary-500/30 rounded-lg p-4 space-y-3">
             <div>
               <p className="text-gray-400 text-sm mb-1">Product Name</p>

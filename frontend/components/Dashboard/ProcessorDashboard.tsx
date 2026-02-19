@@ -369,7 +369,7 @@ const ProcessorDashboard: React.FC = () => {
 
       {/* Process Batch Modal */}
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Process Batch">
-        <form onSubmit={handleProcessBatch} className="space-y-4">
+        <form onSubmit={handleProcessBatch} className="space-y-4 max-h-[70vh] overflow-y-auto pr-3">
           <div className="bg-primary-500/10 border border-primary-500/30 rounded-lg p-4 space-y-3">
             <div>
               <p className="text-gray-400 text-sm mb-1">Product Name</p>
