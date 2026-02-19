@@ -72,7 +72,9 @@ contract OrganicSupplyChain is
         uint256 validUntil;
         string documentHash; // IPFS hash
         bool approved;
+        bool rejected;
         address approvedBy;
+        string rejectionReason;
     }
 
     struct SensorData {
@@ -184,6 +186,12 @@ contract OrganicSupplyChain is
     event CertificateApproved(
         uint256 indexed certificateId,
         address indexed inspector
+    );
+
+    event CertificateRejected(
+        uint256 indexed certificateId,
+        address indexed inspector,
+        string reason
     );
 
     event SensorDataRecorded(
@@ -585,10 +593,31 @@ contract OrganicSupplyChain is
         }
 
         Certificate storage cert = certificates[certificateId];
+        require(!cert.rejected, "Certificate already rejected");
         cert.approved = true;
         cert.approvedBy = msg.sender;
 
         emit CertificateApproved(certificateId, msg.sender);
+    }
+
+    /**
+     * @notice Reject a certificate (inspector only)
+     */
+    function rejectCertificate(
+        uint256 certificateId,
+        string memory reason
+    ) external onlyInspector whenNotPaused {
+        if (certificateId == 0 || certificateId > _certificateIdCounter) {
+            revert InvalidCertificate();
+        }
+
+        Certificate storage cert = certificates[certificateId];
+        require(!cert.approved, "Cannot reject approved certificate");
+        cert.rejected = true;
+        cert.rejectionReason = reason;
+        cert.approvedBy = msg.sender;
+
+        emit CertificateRejected(certificateId, msg.sender, reason);
     }
 
     /**
@@ -765,6 +794,40 @@ contract OrganicSupplyChain is
             revert InvalidCertificate();
         }
         return certificates[certificateId];
+    }
+
+    /**
+     * @notice Get all pending certificates (inspector view)
+     */
+    function getPendingCertificates() external view returns (uint256[] memory) {
+        uint256 count = 0;
+        
+        // First count pending certificates
+        for (uint256 i = 1; i <= _certificateIdCounter; i++) {
+            if (!certificates[i].approved && !certificates[i].rejected) {
+                count++;
+            }
+        }
+        
+        // Build array of pending certificate IDs
+        uint256[] memory pending = new uint256[](count);
+        uint256 index = 0;
+        
+        for (uint256 i = 1; i <= _certificateIdCounter; i++) {
+            if (!certificates[i].approved && !certificates[i].rejected) {
+                pending[index] = i;
+                index++;
+            }
+        }
+        
+        return pending;
+    }
+
+    /**
+     * @notice Get total certificates count
+     */
+    function getTotalCertificates() external view returns (uint256) {
+        return _certificateIdCounter;
     }
 
     /**

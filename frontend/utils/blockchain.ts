@@ -180,12 +180,12 @@ export const completeBatchProcessing = async (
  * Approve a certificate (Inspector)
  */
 export const approveCertificate = async (
-  productId: number
+  certificateId: number
 ) => {
   const contract = await getContract(true);
   if (!contract) throw new Error('Contract not available');
 
-  const tx = await contract.approveCertificate(productId);
+  const tx = await contract.approveCertificate(certificateId);
   const receipt = await tx.wait();
   return receipt;
 };
@@ -194,13 +194,13 @@ export const approveCertificate = async (
  * Reject a certificate (Inspector)
  */
 export const rejectCertificate = async (
-  productId: number,
+  certificateId: number,
   reason: string
 ) => {
   const contract = await getContract(true);
   if (!contract) throw new Error('Contract not available');
 
-  const tx = await contract.rejectCertificate(productId, reason);
+  const tx = await contract.rejectCertificate(certificateId, reason);
   const receipt = await tx.wait();
   return receipt;
 };
@@ -350,6 +350,59 @@ export const addCertificate = async (
   const tx = await contract.addCertificate(productId, issuer, validUntil, documentHash);
   const receipt = await tx.wait();
   return receipt;
+};
+
+/**
+ * Get pending certificates (Inspector)
+ */
+export const getPendingCertificates = async () => {
+  const contract = await getContract(false);
+  if (!contract) throw new Error('Contract not available');
+
+  const pendingIds = await contract.getPendingCertificates();
+  const certificates = [];
+
+  for (const certId of pendingIds) {
+    try {
+      const cert = await contract.getCertificate(certId);
+      certificates.push({
+        certId: Number(cert.certId),
+        issuer: cert.issuer,
+        issueDate: Number(cert.issueDate),
+        validUntil: Number(cert.validUntil),
+        documentHash: cert.documentHash,
+        approved: cert.approved,
+        rejected: cert.rejected,
+        approvedBy: cert.approvedBy,
+        rejectionReason: cert.rejectionReason || ''
+      });
+    } catch (error) {
+      console.error(`Error loading certificate ${certId}:`, error);
+    }
+  }
+
+  return certificates;
+};
+
+/**
+ * Get certificate details
+ */
+export const getCertificate = async (certificateId: number) => {
+  const contract = await getContract(false);
+  if (!contract) throw new Error('Contract not available');
+
+  const cert = await contract.getCertificate(certificateId);
+  return {
+    certId: Number(cert.certId),
+    issuer: cert.issuer,
+    issueDate: Number(cert.issueDate),
+    validUntil: Number(cert.validUntil),
+    documentHash: cert.documentHash,
+    approved: cert.approved,
+    rejected: cert.rejected,
+    approvedBy: cert.approvedBy,
+    rejectionReason: cert.rejectionReason || ''
+  };
 };
 
 /**

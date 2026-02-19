@@ -1,446 +1,300 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { FaCertificate, FaCheckCircle, FaTimesCircle, FaClipboardList, FaExternalLinkAlt } from 'react-icons/fa';
-import GlassCard from '../Layout/GlassCard';
-import Button from '../UI/Button';
-import Modal from '../UI/Modal';
-import { getCurrentAccount, getAllProducts, approveCertificate, rejectCertificate } from '../../utils/blockchain';
-import { PRODUCT_STATUS } from '../../utils/constants';
+import { 
+  FaCertificate, 
+  FaCheckCircle, 
+  FaTimesCircle, 
+  FaFileAlt,
+  FaClock,
+  FaExclamationTriangle 
+} from 'react-icons/fa';
+import { 
+  getPendingCertificates, 
+  approveCertificate, 
+  rejectCertificate,
+  formatDate,
+  getCurrentAccount
+} from '../../utils/blockchain';
+
+interface Certificate {
+  certId: number;
+  issuer: string;
+  issueDate: number;
+  validUntil: number;
+  documentHash: string;
+  approved: boolean;
+  rejected: boolean;
+  approvedBy: string;
+  rejectionReason: string;
+}
 
 const InspectorDashboard: React.FC = () => {
   const [account, setAccount] = useState<string | null>(null);
-  const [products, setProducts] = useState<any[]>([]);
-  const [loadingProducts, setLoadingProducts] = useState(true);
-  const [showApproveModal, setShowApproveModal] = useState(false);
-  const [showRejectModal, setShowRejectModal] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<any>(null);
-  const [rejectReason, setRejectReason] = useState('');
-  const [processing, setProcessing] = useState(false);
+  const [pendingCertificates, setPendingCertificates] = useState<Certificate[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [processingCertId, setProcessingCertId] = useState<number | null>(null);
 
   useEffect(() => {
     loadData();
   }, []);
 
   const loadData = async () => {
-    const acc = await getCurrentAccount();
-    setAccount(acc);
-    await loadProducts();
-  };
-
-  const loadProducts = async () => {
-    setLoadingProducts(true);
     try {
-      const allProducts = await getAllProducts();
-      setProducts(allProducts);
+      const acc = await getCurrentAccount();
+      setAccount(acc);
+      await loadPendingCertificates();
     } catch (error) {
-      console.error('Error loading products:', error);
-      setProducts([]);
-    } finally {
-      setLoadingProducts(false);
+      console.error('Error loading data:', error);
     }
   };
 
-  const openApproveModal = (product: any) => {
-    setSelectedProduct(product);
-    setShowApproveModal(true);
-  };
-
-  const openRejectModal = (product: any) => {
-    setSelectedProduct(product);
-    setRejectReason('');
-    setShowRejectModal(true);
-  };
-
-  const handleApproveCertificate = async () => {
-    if (!selectedProduct) return;
-
-    setProcessing(true);
+  const loadPendingCertificates = async () => {
     try {
-      await approveCertificate(selectedProduct.id);
-      alert('Certificate approved successfully!');
-      setShowApproveModal(false);
-      setSelectedProduct(null);
-      await loadProducts();
-    } catch (error: any) {
-      console.error('Error approving certificate:', error);
-      let errorMessage = 'Failed to approve certificate. ';
-      
-      if (error.code === 4001) {
-        errorMessage += 'You rejected the transaction.';
-      } else if (error.message?.includes('AccessControl')) {
-        errorMessage += 'Your account does not have INSPECTOR_ROLE.';
-      } else if (error.message) {
-        errorMessage += error.message;
-      }
-      
-      alert(errorMessage);
+      setLoading(true);
+      const certs = await getPendingCertificates();
+      setPendingCertificates(certs);
+    } catch (error) {
+      console.error('Error loading pending certificates:', error);
+      alert('Error loading pending certificates. Please check console.');
     } finally {
-      setProcessing(false);
+      setLoading(false);
     }
   };
 
-  const handleRejectCertificate = async () => {
-    if (!selectedProduct || !rejectReason.trim()) {
-      alert('Please provide a rejection reason.');
+  const handleApprove = async (certId: number) => {
+    if (!confirm(`Are you sure you want to APPROVE Certificate #${certId}?`)) {
       return;
     }
 
-    setProcessing(true);
     try {
-      await rejectCertificate(selectedProduct.id, rejectReason);
-      alert('Certificate rejected successfully!');
-      setShowRejectModal(false);
-      setSelectedProduct(null);
-      setRejectReason('');
-      await loadProducts();
+      setProcessingCertId(certId);
+      await approveCertificate(certId);
+      alert(`✅ Certificate #${certId} has been APPROVED!`);
+      await loadPendingCertificates();
+    } catch (error: any) {
+      console.error('Error approving certificate:', error);
+      alert(`Error: ${error.message || 'Failed to approve certificate'}`);
+    } finally {
+      setProcessingCertId(null);
+    }
+  };
+
+  const handleReject = async (certId: number) => {
+    const reason = prompt(`Provide a reason for REJECTING Certificate #${certId}:`);
+    
+    if (!reason || reason.trim() === '') {
+      alert('Rejection reason is required.');
+      return;
+    }
+
+    try {
+      setProcessingCertId(certId);
+      await rejectCertificate(certId, reason.trim());
+      alert(`❌ Certificate #${certId} has been REJECTED.\nReason: ${reason}`);
+      await loadPendingCertificates();
     } catch (error: any) {
       console.error('Error rejecting certificate:', error);
-      let errorMessage = 'Failed to reject certificate. ';
-      
-      if (error.code === 4001) {
-        errorMessage += 'You rejected the transaction.';
-      } else if (error.message?.includes('AccessControl')) {
-        errorMessage += 'Your account does not have INSPECTOR_ROLE.';
-      } else if (error.message) {
-        errorMessage += error.message;
-      }
-      
-      alert(errorMessage);
+      alert(`Error: ${error.message || 'Failed to reject certificate'}`);
     } finally {
-      setProcessing(false);
+      setProcessingCertId(null);
     }
   };
 
-  const getCertificateStatus = (product: any) => {
-    const hasCertificate = product.certificates && product.certificates.length > 0;
-    if (!hasCertificate) return 'No Certificate';
-    
-    const latestCert = product.certificates[product.certificates.length - 1];
-    return latestCert.isValid ? 'Approved' : 'Pending';
+  const isExpired = (validUntil: number) => {
+    return Date.now() / 1000 > validUntil;
   };
 
-  const getCertificateActions = (product: any) => {
-    const hasCertificate = product.certificates && product.certificates.length > 0;
-    if (!hasCertificate) {
-      return (
-        <p className="text-gray-500 text-sm italic">No certificate submitted yet</p>
-      );
-    }
-
-    const latestCert = product.certificates[product.certificates.length - 1];
-    if (latestCert.isValid) {
-      return (
-        <div className="flex items-center gap-2 text-green-400 text-sm">
-          <FaCheckCircle />
-          <span>Certificate Approved</span>
-        </div>
-      );
-    }
-
-    // Pending - show approve/reject buttons
+  if (loading) {
     return (
-      <div className="flex gap-2">
-        <Button
-          onClick={() => openApproveModal(product)}
-          disabled={!account || processing}
-          variant="primary"
-          className="flex-1"
-        >
-          <FaCheckCircle className="inline mr-1" />
-          Approve
-        </Button>
-        <Button
-          onClick={() => openRejectModal(product)}
-          disabled={!account || processing}
-          variant="danger"
-          className="flex-1"
-        >
-          <FaTimesCircle className="inline mr-1" />
-          Reject
-        </Button>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-primary-500 mx-auto mb-4"></div>
+          <p className="text-gray-400">Loading pending certificates...</p>
+        </div>
       </div>
     );
-  };
-
-  const pendingCount = products.filter((p: any) => {
-    const hasCert = p.certificates && p.certificates.length > 0;
-    if (!hasCert) return false;
-    const latestCert = p.certificates[p.certificates.length - 1];
-    return !latestCert.isValid;
-  }).length;
-
-  const approvedCount = products.filter((p: any) => {
-    const hasCert = p.certificates && p.certificates.length > 0;
-    if (!hasCert) return false;
-    const latestCert = p.certificates[p.certificates.length - 1];
-    return latestCert.isValid;
-  }).length;
-
-  const noCertCount = products.filter((p: any) => {
-    return !p.certificates || p.certificates.length === 0;
-  }).length;
+  }
 
   return (
-    <div className="space-y-6">
-      {/* Wallet Connection Warning */}
-      {!account && (
-        <div className="bg-yellow-900/30 border border-yellow-600/50 rounded-lg p-4 flex items-start gap-3">
-          <div className="text-yellow-500 text-xl">⚠️</div>
-          <div>
-            <h3 className="text-yellow-400 font-semibold mb-1">Wallet Not Connected</h3>
-            <p className="text-yellow-200/80 text-sm">
-              Please connect your MetaMask wallet to use the Inspector Dashboard.
-              You need an account with INSPECTOR_ROLE.
-            </p>
+    <div className="container mx-auto px-4 py-8">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        {/* Wallet Connection Warning */}
+        {!account && (
+          <div className="bg-yellow-900/30 border border-yellow-600/50 rounded-lg p-4 flex items-start gap-3 mb-6">
+            <div className="text-yellow-500 text-xl">⚠️</div>
+            <div>
+              <h3 className="text-yellow-400 font-semibold mb-1">Wallet Not Connected</h3>
+              <p className="text-yellow-200/80 text-sm">
+                Please connect your MetaMask wallet. You need an account with INSPECTOR_ROLE (0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65).
+              </p>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-4xl font-bold gradient-text mb-2">Inspector Dashboard</h1>
-          <p className="text-gray-400">Review and approve product certificates</p>
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold gradient-text mb-2 flex items-center gap-3">
+            <FaCertificate className="text-primary-400" />
+            Inspector Dashboard
+          </h1>
+          <p className="text-gray-400">Review and approve/reject organic certifications</p>
           {account && (
-            <p className="text-sm text-gray-500 mt-1">
-              Connected: <span className="text-primary-400 font-mono">{account.slice(0, 6)}...{account.slice(-4)}</span>
+            <p className="text-sm text-gray-500 mt-2">
+              Connected: <span className="text-primary-400 font-mono">{account.slice(0, 10)}...{account.slice(-4)}</span>
             </p>
           )}
         </div>
-      </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <GlassCard>
-          <div className="flex items-center gap-4">
-            <div className="text-4xl text-primary-400">
-              <FaClipboardList />
-            </div>
-            <div>
-              <p className="text-gray-400 text-sm">Total Products</p>
-              <p className="text-3xl font-bold">{products.length}</p>
+        {/* Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="glass-card p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-400 text-sm">Pending Review</p>
+                <p className="text-3xl font-bold text-yellow-400 mt-1">
+                  {pendingCertificates.length}
+                </p>
+              </div>
+              <FaClock className="text-5xl text-yellow-400 opacity-20" />
             </div>
           </div>
-        </GlassCard>
 
-        <GlassCard>
-          <div className="flex items-center gap-4">
-            <div className="text-4xl text-orange-400">
-              <FaCertificate />
-            </div>
-            <div>
-              <p className="text-gray-400 text-sm">Pending Review</p>
-              <p className="text-3xl font-bold">{pendingCount}</p>
+          <div className="glass-card p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-400 text-sm">Requires Attention</p>
+                <p className="text-3xl font-bold text-red-400 mt-1">
+                  {pendingCertificates.filter(c => isExpired(c.validUntil)).length}
+                </p>
+              </div>
+              <FaExclamationTriangle className="text-5xl text-red-400 opacity-20" />
             </div>
           </div>
-        </GlassCard>
 
-        <GlassCard>
-          <div className="flex items-center gap-4">
-            <div className="text-4xl text-green-400">
-              <FaCheckCircle />
-            </div>
-            <div>
-              <p className="text-gray-400 text-sm">Approved</p>
-              <p className="text-3xl font-bold">{approvedCount}</p>
+          <div className="glass-card p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-400 text-sm">Total Pending</p>
+                <p className="text-3xl font-bold text-primary-400 mt-1">
+                  {pendingCertificates.length}
+                </p>
+              </div>
+              <FaFileAlt className="text-5xl text-primary-400 opacity-20" />
             </div>
           </div>
-        </GlassCard>
+        </div>
 
-        <GlassCard>
-          <div className="flex items-center gap-4">
-            <div className="text-4xl text-gray-500">
-              <FaTimesCircle />
-            </div>
-            <div>
-              <p className="text-gray-400 text-sm">No Certificate</p>
-              <p className="text-3xl font-bold">{noCertCount}</p>
-            </div>
-          </div>
-        </GlassCard>
-      </div>
+        {/* Pending Certificates List */}
+        <div className="glass-card p-6">
+          <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
+            <FaClock className="text-yellow-400" />
+            Pending Certificates
+          </h2>
 
-      {/* Products List */}
-      <div>
-        <h2 className="text-2xl font-bold mb-4">Certificate Review</h2>
-        {loadingProducts ? (
-          <GlassCard>
+          {pendingCertificates.length === 0 ? (
             <div className="text-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-400 mx-auto mb-4"></div>
-              <p className="text-gray-400">Loading products...</p>
+              <FaCheckCircle className="text-6xl text-green-400 mx-auto mb-4 opacity-50" />
+              <p className="text-gray-400 text-lg">No pending certificates to review</p>
+              <p className="text-gray-500 text-sm mt-2">All certificates have been processed</p>
             </div>
-          </GlassCard>
-        ) : products.length === 0 ? (
-          <GlassCard>
-            <div className="text-center py-12">
-              <FaClipboardList className="text-6xl text-gray-600 mx-auto mb-4" />
-              <p className="text-gray-400 mb-4">No products found</p>
-            </div>
-          </GlassCard>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {products.map((product: any) => (
-              <GlassCard key={product.id}>
-                <div className="flex justify-between items-start mb-3">
-                  <h3 className="text-xl font-bold">{product.name}</h3>
-                  <span className={`status-badge status-${(PRODUCT_STATUS[Number(product.status)] || 'Unknown').toLowerCase().replace(' ', '-')}`}>
-                    {PRODUCT_STATUS[Number(product.status)] || 'Unknown'}
-                  </span>
-                </div>
-                
-                <div className="space-y-2 text-sm mb-4">
-                  <p>
-                    <span className="text-gray-400">Product ID:</span>{' '}
-                    <span className="font-mono">#{product.id}</span>
-                  </p>
-                  <p>
-                    <span className="text-gray-400">Farmer:</span>{' '}
-                    <span className="font-mono text-xs">{product.farmer?.slice(0, 6)}...{product.farmer?.slice(-4)}</span>
-                  </p>
-                  <p>
-                    <span className="text-gray-400">Score:</span>{' '}
-                    <span className="text-yellow-400">{Number(product.authenticityScore)}/100</span>
-                  </p>
-                  <p>
-                    <span className="text-gray-400">Certificate:</span>{' '}
-                    <span className={
-                      getCertificateStatus(product) === 'Approved' ? 'text-green-400' :
-                      getCertificateStatus(product) === 'Pending' ? 'text-orange-400' :
-                      'text-gray-500'
-                    }>
-                      {getCertificateStatus(product)}
-                    </span>
-                  </p>
-                  {product.certificates && product.certificates.length > 0 && (
-                    <div>
-                      <span className="text-gray-400">Documents:</span>{' '}
-                      <a
-                        href={product.certificates[product.certificates.length - 1].ipfsHash}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary-400 hover:text-primary-300 text-xs flex items-center gap-1 mt-1"
-                      >
-                        View on IPFS <FaExternalLinkAlt className="text-xs" />
-                      </a>
+          ) : (
+            <div className="space-y-4">
+              {pendingCertificates.map((cert, index) => (
+                <motion.div
+                  key={cert.certId}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  className={`p-6 rounded-lg border ${
+                    isExpired(cert.validUntil)
+                      ? 'bg-red-500/10 border-red-500/30'
+                      : 'bg-gray-800/50 border-gray-700'
+                  }`}
+                >
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <h3 className="text-xl font-bold text-primary-300">
+                          Certificate #{cert.certId}
+                        </h3>
+                        {isExpired(cert.validUntil) && (
+                          <span className="px-3 py-1 bg-red-500/20 text-red-400 rounded-full text-xs font-semibold flex items-center gap-1">
+                            <FaExclamationTriangle />
+                            EXPIRED
+                          </span>
+                        )}
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mt-4">
+                        <div>
+                          <p className="text-gray-400">Issuer:</p>
+                          <p className="font-semibold text-white">{cert.issuer}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-400">Issue Date:</p>
+                          <p className="font-semibold text-white">{formatDate(cert.issueDate)}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-400">Valid Until:</p>
+                          <p className={`font-semibold ${isExpired(cert.validUntil) ? 'text-red-400' : 'text-green-400'}`}>
+                            {formatDate(cert.validUntil)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-gray-400">Document Hash:</p>
+                          <p className="font-mono text-xs text-primary-300 break-all">
+                            {cert.documentHash.substring(0, 20)}...
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                  )}
-                </div>
+                  </div>
 
-                <div className="mt-4">
-                  {getCertificateActions(product)}
-                </div>
+                  {/* Action Buttons */}
+                  <div className="flex gap-3 mt-4 pt-4 border-t border-gray-700">
+                    <button
+                      onClick={() => handleApprove(cert.certId)}
+                      disabled={processingCertId === cert.certId}
+                      className="flex-1 px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {processingCertId === cert.certId ? (
+                        <>Processing...</>
+                      ) : (
+                        <>
+                          <FaCheckCircle />
+                          Approve Certificate
+                        </>
+                      )}
+                    </button>
 
-                <div className="mt-3">
-                  <a
-                    href={`/consumer/${product.id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary-400 hover:text-primary-300 text-sm flex items-center gap-2"
-                  >
-                    <span>View Full History →</span>
-                  </a>
-                </div>
-              </GlassCard>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Approve Certificate Modal */}
-      <Modal
-        isOpen={showApproveModal}
-        onClose={() => {
-          setShowApproveModal(false);
-          setSelectedProduct(null);
-        }}
-        title="Approve Certificate"
-      >
-        <div className="space-y-4">
-          <p className="text-gray-300">
-            Are you sure you want to approve the certificate for{' '}
-            <span className="font-bold text-white">{selectedProduct?.name}</span>?
-          </p>
-          <p className="text-sm text-gray-400">
-            This will mark the certificate as valid and may increase the product's authenticity score.
-          </p>
-          <div className="flex gap-3 mt-6">
-            <Button
-              onClick={handleApproveCertificate}
-              disabled={processing}
-              variant="primary"
-              className="flex-1"
-            >
-              {processing ? 'Processing...' : 'Confirm Approval'}
-            </Button>
-            <Button
-              onClick={() => {
-                setShowApproveModal(false);
-                setSelectedProduct(null);
-              }}
-              disabled={processing}
-              variant="secondary"
-              className="flex-1"
-            >
-              Cancel
-            </Button>
-          </div>
+                    <button
+                      onClick={() => handleReject(cert.certId)}
+                      disabled={processingCertId === cert.certId}
+                      className="flex-1 px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {processingCertId === cert.certId ? (
+                        <>Processing...</>
+                      ) : (
+                        <>
+                          <FaTimesCircle />
+                          Reject Certificate
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
         </div>
-      </Modal>
-
-      {/* Reject Certificate Modal */}
-      <Modal
-        isOpen={showRejectModal}
-        onClose={() => {
-          setShowRejectModal(false);
-          setSelectedProduct(null);
-          setRejectReason('');
-        }}
-        title="Reject Certificate"
-      >
-        <div className="space-y-4">
-          <p className="text-gray-300">
-            Rejecting certificate for{' '}
-            <span className="font-bold text-white">{selectedProduct?.name}</span>
-          </p>
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Rejection Reason *
-            </label>
-            <textarea
-              value={rejectReason}
-              onChange={(e) => setRejectReason(e.target.value)}
-              placeholder="Enter reason for rejection..."
-              rows={4}
-              className="w-full px-4 py-2 bg-dark-200 border border-dark-300 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-primary-400"
-              disabled={processing}
-            />
-          </div>
-          <div className="flex gap-3 mt-6">
-            <Button
-              onClick={handleRejectCertificate}
-              disabled={processing || !rejectReason.trim()}
-              variant="danger"
-              className="flex-1"
-            >
-              {processing ? 'Processing...' : 'Confirm Rejection'}
-            </Button>
-            <Button
-              onClick={() => {
-                setShowRejectModal(false);
-                setSelectedProduct(null);
-                setRejectReason('');
-              }}
-              disabled={processing}
-              variant="secondary"
-              className="flex-1"
-            >
-              Cancel
-            </Button>
-          </div>
-        </div>
-      </Modal>
+      </motion.div>
     </div>
   );
 };
 
 export default InspectorDashboard;
+
