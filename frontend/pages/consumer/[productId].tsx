@@ -7,6 +7,7 @@ import ProductTrace from '../../components/Blockchain/ProductTrace';
 import CarbonFootprint from '../../components/Advanced/CarbonFootprint';
 import FreshnessScore from '../../components/Advanced/FreshnessScore';
 import SustainabilityScore from '../../components/Advanced/SustainabilityScore';
+import ComparisonAnalytics from '../../components/Advanced/ComparisonAnalytics';
 import { getProductHistory, verifyProduct, calculateDistance } from '../../utils/blockchain';
 import { FaQrcode, FaCertificate, FaMapMarkedAlt, FaIndustry, FaThermometerHalf, FaBox } from 'react-icons/fa';
 
@@ -278,6 +279,17 @@ export default function ConsumerProductPage() {
               </div>
             </div>
           </GlassCard>
+
+          {/* Comparative Analytics */}
+          <ComparisonAnalytics
+            productId={Number(product.id)}
+            currentMetrics={{
+              daysInSupplyChain: Math.floor((Date.now() / 1000 - Number(product.plantedDate)) / (24 * 60 * 60)),
+              carbonFootprint: (calculateTravelDistance() * 0.12) + (calculateStorageDays() * 0.05),
+              custodyTransfers: 2, // Farmer -> Processor -> Retailer
+              authenticityScore: Number(product.authenticityScore) || 0
+            }}
+          />
 
           {/* Certificates */}
           {batches.some((b: any) => b.certificateIds && b.certificateIds.length > 0) && (
