@@ -94,6 +94,9 @@ contract OrganicSupplyChain is
         SensorData[] sensorLogs;
         uint256[] certificateIds;
         string packagingDetails;
+        string processingLocation;
+        string processingNotes;
+        string processingCertHash;
         ProductStatus status;
     }
 
@@ -105,10 +108,18 @@ contract OrganicSupplyChain is
         string organicCertification; // IPFS hash
         GPSCoordinates farmLocation;
         uint256 plantedDate;
+        uint256 expectedHarvestDate;
         uint256 harvestDate;
+        uint256 harvestQuantity;
+        string harvestNotes;
         ProductStatus status;
         uint256[] batchIds;
         address currentCustodian;
+        uint256 transferDate;
+        uint256 receivedDate;
+        uint256 expiryDate;
+        uint256 retailPrice;
+        string retailNotes;
         bool recalled;
         uint256 authenticityScore; // 0-100
     }
@@ -146,7 +157,8 @@ contract OrganicSupplyChain is
         uint256 indexed productId,
         uint256 harvestDate,
         uint256 quantity,
-        address indexed farmer
+        address indexed farmer,
+        string notes
     );
 
     event DeliveryAccepted(
@@ -169,11 +181,35 @@ contract OrganicSupplyChain is
         uint256 timestamp
     );
 
+    event BatchProcessed(
+        uint256 indexed batchId,
+        uint256 indexed productId,
+        address indexed processor,
+        uint256 timestamp
+    );
+
     event CustodyTransferred(
         uint256 indexed batchId,
         address indexed from,
         address indexed to,
         uint256 timestamp
+    );
+
+    event ProductCustodyTransferred(
+        uint256 indexed productId,
+        address indexed from,
+        address indexed to,
+        string notes,
+        uint256 timestamp
+    );
+
+    event ProductReceived(
+        uint256 indexed productId,
+        address indexed retailer,
+        uint256 receivedDate,
+        uint256 expiryDate,
+        uint256 retailPrice,
+        string notes
     );
 
     event CertificateAdded(
@@ -210,6 +246,13 @@ contract OrganicSupplyChain is
 
     event ProductRecalled(
         uint256 indexed productId,
+        string reason,
+        uint256 timestamp
+    );
+
+    event TamperFlagged(
+        uint256 indexed productId,
+        address indexed reporter,
         string reason,
         uint256 timestamp
     );
@@ -309,7 +352,8 @@ contract OrganicSupplyChain is
         string memory organicCertHash,
         string memory latitude,
         string memory longitude,
-        uint256 plantedDate
+        uint256 plantedDate,
+        uint256 expectedHarvestDate
     ) external onlyFarmer whenNotPaused returns (uint256) {
         _productIdCounter++;
         uint256 productId = _productIdCounter;
@@ -328,6 +372,7 @@ contract OrganicSupplyChain is
         newProduct.organicCertification = organicCertHash;
         newProduct.farmLocation = farmLocation;
         newProduct.plantedDate = plantedDate;
+        newProduct.expectedHarvestDate = expectedHarvestDate;
         newProduct.status = ProductStatus.Planted;
         newProduct.currentCustodian = msg.sender;
         newProduct.authenticityScore = 100; // Start with perfect score
@@ -373,7 +418,8 @@ contract OrganicSupplyChain is
      */
     function harvestProduct(
         uint256 productId,
-        uint256 estimatedQuantity
+        uint256 estimatedQuantity,
+        string memory notes
     ) external productExists(productId) whenNotPaused {
         Product storage product = products[productId];
         
@@ -390,11 +436,13 @@ contract OrganicSupplyChain is
         ProductStatus oldStatus = product.status;
         product.status = ProductStatus.Harvested;
         product.harvestDate = block.timestamp;
+        product.harvestQuantity = estimatedQuantity;
+        product.harvestNotes = notes;
 
         productUpdates[productId]++;
         _updateAuthenticityScore(productId);
 
-        emit ProductHarvested(productId, block.timestamp, estimatedQuantity, msg.sender);
+        emit ProductHarvested(productId, block.timestamp, estimatedQuantity, msg.sender, notes);
         emit ProductStatusUpdated(productId, oldStatus, ProductStatus.Harvested, block.timestamp);
     }
 
@@ -418,7 +466,170 @@ contract OrganicSupplyChain is
         emit DeliveryAccepted(productId, previousCustodian, msg.sender, block.timestamp);
     }
 
+    /**
+     * @notice Transfer custody of a product to a new custodian with notes
+     * @param productId Product ID
+     * @param newCustodian New custodian address
+     * @param notes Transfer notes
+     */
+    function transferCustody(
+        uint256 productId,
+        address newCustodian,
+        string memory notes
+    ) external productExists(productId) whenNotPaused {
+        Product storage product = products[productId];
+
+        if (msg.sender != product.currentCustodian) {
+            revert InvalidTransfer();
+        }
+
+        address previousCustodian = product.currentCustodian;
+        product.currentCustodian = newCustodian;
+        product.transferDate = block.timestamp;
+
+        ProductStatus oldStatus = product.status;
+        product.status = ProductStatus.InTransit;
+
+        productUpdates[productId]++;
+        _updateAuthenticityScore(productId);
+
+        emit ProductCustodyTransferred(productId, previousCustodian, newCustodian, notes, block.timestamp);
+        emit ProductStatusUpdated(productId, oldStatus, ProductStatus.InTransit, block.timestamp);
+    }
+
+    /**
+     * @notice Receive a product at retail and record retail data
+     * @param productId Product ID
+     * @param receivedDate Date received (unix timestamp)
+     * @param expiryDate Expiry date (unix timestamp)
+     * @param retailPrice Retail price (in smallest currency units)
+     * @param notes Retail notes
+     */
+    function receiveProduct(
+        uint256 productId,
+        uint256 receivedDate,
+        uint256 expiryDate,
+        uint256 retailPrice,
+        string memory notes
+    ) external productExists(productId) whenNotPaused {
+        Product storage product = products[productId];
+
+        if (!hasRole(RETAILER_ROLE, msg.sender)) {
+            revert UnauthorizedAccess();
+        }
+
+        if (product.currentCustodian != msg.sender) {
+            revert InvalidTransfer();
+        }
+
+        if (product.status != ProductStatus.InTransit && product.status != ProductStatus.Processed) {
+            revert InvalidOperation();
+        }
+
+        product.receivedDate = receivedDate;
+        product.expiryDate = expiryDate;
+        product.retailPrice = retailPrice;
+        product.retailNotes = notes;
+
+        ProductStatus oldStatus = product.status;
+        product.status = ProductStatus.Delivered;
+
+        productUpdates[productId]++;
+        _updateAuthenticityScore(productId);
+
+        emit ProductReceived(productId, msg.sender, receivedDate, expiryDate, retailPrice, notes);
+        emit ProductStatusUpdated(productId, oldStatus, ProductStatus.Delivered, block.timestamp);
+    }
+
     // ============ Batch Management ============
+    /**
+     * @notice Process a harvested product into a batch (Processor only)
+     * @param productId Product ID
+     * @param quantity Quantity in kg
+     * @param processingLocation Location of processing facility
+     * @param temperatures Temperature readings (Celsius * 100)
+     * @param humidities Humidity readings (Percentage * 100)
+     * @param processingNotes Processing notes
+     * @param processingCertHash Optional processing certificate IPFS hash
+     */
+    function processBatch(
+        uint256 productId,
+        uint256 quantity,
+        string memory processingLocation,
+        int16[] memory temperatures,
+        uint16[] memory humidities,
+        string memory processingNotes,
+        string memory processingCertHash
+    ) external onlyProcessor productExists(productId) whenNotPaused returns (uint256) {
+        Product storage product = products[productId];
+
+        if (product.status != ProductStatus.Harvested) {
+            revert InvalidOperation();
+        }
+
+        _batchIdCounter++;
+        uint256 batchId = _batchIdCounter;
+
+        Batch storage newBatch = batches[batchId];
+        newBatch.batchId = batchId;
+        newBatch.productId = productId;
+        newBatch.processor = msg.sender;
+        newBatch.processedDate = block.timestamp;
+        newBatch.quantity = quantity;
+        newBatch.processingLocation = processingLocation;
+        newBatch.processingNotes = processingNotes;
+        newBatch.processingCertHash = processingCertHash;
+        newBatch.status = ProductStatus.Processed;
+
+        products[productId].batchIds.push(batchId);
+        custodianBatches[msg.sender].push(batchId);
+
+        // Record sensor data if provided
+        uint256 readings = temperatures.length;
+        if (humidities.length < readings) {
+            readings = humidities.length;
+        }
+
+        for (uint256 i = 0; i < readings; i++) {
+            bool anomaly = false;
+            if (temperatures[i] < -1000 || temperatures[i] > 4000) {
+                anomaly = true;
+            }
+            if (humidities[i] > 10000) {
+                anomaly = true;
+            }
+
+            SensorData memory data = SensorData({
+                timestamp: block.timestamp,
+                temperature: temperatures[i],
+                humidity: humidities[i],
+                anomalyDetected: anomaly
+            });
+
+            newBatch.sensorLogs.push(data);
+            emit SensorDataRecorded(batchId, temperatures[i], humidities[i], anomaly);
+
+            if (anomaly && product.authenticityScore > 5) {
+                product.authenticityScore -= 5;
+                emit AuthenticityScoreUpdated(productId, product.authenticityScore);
+            }
+        }
+
+        // Update product status to Processed and set custodian to processor
+        ProductStatus oldStatus = product.status;
+        product.status = ProductStatus.Processed;
+        product.currentCustodian = msg.sender;
+
+        productUpdates[productId]++;
+        _updateAuthenticityScore(productId);
+
+        emit BatchCreated(batchId, productId, msg.sender, quantity);
+        emit BatchProcessed(batchId, productId, msg.sender, block.timestamp);
+        emit ProductStatusUpdated(productId, oldStatus, ProductStatus.Processed, block.timestamp);
+
+        return batchId;
+    }
+
     /**
      * @notice Create a new batch for processing
      */
@@ -647,6 +858,31 @@ contract OrganicSupplyChain is
 
     // ============ Verification & Fraud Detection ============
     /**
+     * @notice Flag a product as tampered (admin/inspector demo)
+     * @param productId Product ID
+     * @param reason Reason for tamper flag
+     */
+    function flagTamper(
+        uint256 productId,
+        string memory reason
+    ) external productExists(productId) whenNotPaused {
+        if (!hasRole(DEFAULT_ADMIN_ROLE, msg.sender) && !hasRole(INSPECTOR_ROLE, msg.sender)) {
+            revert UnauthorizedAccess();
+        }
+
+        Product storage product = products[productId];
+        if (product.authenticityScore > 15) {
+            product.authenticityScore -= 15;
+        } else {
+            product.authenticityScore = 0;
+        }
+
+        productUpdates[productId]++;
+        emit AuthenticityScoreUpdated(productId, product.authenticityScore);
+        emit TamperFlagged(productId, msg.sender, reason, block.timestamp);
+    }
+
+    /**
      * @notice Calculate authenticity score based on multiple factors
      */
     function _updateAuthenticityScore(uint256 productId) internal {
@@ -747,6 +983,31 @@ contract OrganicSupplyChain is
     }
 
     // ============ Query Functions ============
+    /**
+     * @notice Get product IDs ready for processing (Harvested)
+     */
+    function getAvailableBatches() external view returns (uint256[] memory) {
+        uint256 total = _productIdCounter;
+        uint256 count = 0;
+
+        for (uint256 i = 1; i <= total; i++) {
+            if (products[i].status == ProductStatus.Harvested) {
+                count++;
+            }
+        }
+
+        uint256[] memory available = new uint256[](count);
+        uint256 index = 0;
+        for (uint256 i = 1; i <= total; i++) {
+            if (products[i].status == ProductStatus.Harvested) {
+                available[index] = i;
+                index++;
+            }
+        }
+
+        return available;
+    }
+
     /**
      * @notice Get complete product history
      */

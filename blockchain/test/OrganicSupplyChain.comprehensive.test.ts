@@ -20,6 +20,7 @@ describe("OrganicSupplyChain - Comprehensive Tests", function () {
   const RETAILER_ROLE = ethers.keccak256(ethers.toUtf8Bytes("RETAILER_ROLE"));
   const INSPECTOR_ROLE = ethers.keccak256(ethers.toUtf8Bytes("INSPECTOR_ROLE"));
   const UPGRADER_ROLE = ethers.keccak256(ethers.toUtf8Bytes("UPGRADER_ROLE"));
+  const toExpectedHarvestDate = (plantedDate: number) => plantedDate + 30 * 24 * 60 * 60;
 
   beforeEach(async function () {
     [admin, farmer, processor, retailer, inspector, consumer, unauthorized] = 
@@ -113,7 +114,13 @@ describe("OrganicSupplyChain - Comprehensive Tests", function () {
 
     it("Should allow farmer to register product", async function () {
       const tx = await organicChain.connect(farmer).registerProduct(
-        productName, cropType, certHash, latitude, longitude, plantedDate
+        productName,
+        cropType,
+        certHash,
+        latitude,
+        longitude,
+        plantedDate,
+        toExpectedHarvestDate(plantedDate)
       );
 
       await expect(tx)
@@ -124,26 +131,50 @@ describe("OrganicSupplyChain - Comprehensive Tests", function () {
     it("Should reject product registration from non-farmer", async function () {
       await expect(
         organicChain.connect(unauthorized).registerProduct(
-          productName, cropType, certHash, latitude, longitude, plantedDate
+          productName,
+          cropType,
+          certHash,
+          latitude,
+          longitude,
+          plantedDate,
+          toExpectedHarvestDate(plantedDate)
         )
       ).to.be.revertedWithCustomError(organicChain, "UnauthorizedAccess");
     });
 
     it("Should increment product ID", async function () {
       await organicChain.connect(farmer).registerProduct(
-        productName, cropType, certHash, latitude, longitude, plantedDate
+        productName,
+        cropType,
+        certHash,
+        latitude,
+        longitude,
+        plantedDate,
+        toExpectedHarvestDate(plantedDate)
       );
       expect(await organicChain.getTotalProducts()).to.equal(1);
 
       await organicChain.connect(farmer).registerProduct(
-        "Organic Tomatoes", 0, certHash, latitude, longitude, plantedDate
+        "Organic Tomatoes",
+        0,
+        certHash,
+        latitude,
+        longitude,
+        plantedDate,
+        toExpectedHarvestDate(plantedDate)
       );
       expect(await organicChain.getTotalProducts()).to.equal(2);
     });
 
     it("Should set initial authenticity score to 100", async function () {
       await organicChain.connect(farmer).registerProduct(
-        productName, cropType, certHash, latitude, longitude, plantedDate
+        productName,
+        cropType,
+        certHash,
+        latitude,
+        longitude,
+        plantedDate,
+        toExpectedHarvestDate(plantedDate)
       );
       const score = await organicChain.getAuthenticityScore(1);
       expect(score).to.equal(100);
@@ -151,7 +182,13 @@ describe("OrganicSupplyChain - Comprehensive Tests", function () {
 
     it("Should track farmer's products", async function () {
       await organicChain.connect(farmer).registerProduct(
-        productName, cropType, certHash, latitude, longitude, plantedDate
+        productName,
+        cropType,
+        certHash,
+        latitude,
+        longitude,
+        plantedDate,
+        toExpectedHarvestDate(plantedDate)
       );
       const products = await organicChain.getFarmerProducts(farmer.address);
       expect(products.length).to.equal(1);
@@ -160,7 +197,13 @@ describe("OrganicSupplyChain - Comprehensive Tests", function () {
 
     it("Should set farmer as initial custodian", async function () {
       await organicChain.connect(farmer).registerProduct(
-        productName, cropType, certHash, latitude, longitude, plantedDate
+        productName,
+        cropType,
+        certHash,
+        latitude,
+        longitude,
+        plantedDate,
+        toExpectedHarvestDate(plantedDate)
       );
       const product = await organicChain.products(1);
       expect(product.currentCustodian).to.equal(farmer.address);
@@ -168,7 +211,13 @@ describe("OrganicSupplyChain - Comprehensive Tests", function () {
 
     it("Should store GPS coordinates", async function () {
       await organicChain.connect(farmer).registerProduct(
-        productName, cropType, certHash, latitude, longitude, plantedDate
+        productName,
+        cropType,
+        certHash,
+        latitude,
+        longitude,
+        plantedDate,
+        toExpectedHarvestDate(plantedDate)
       );
       const product = await organicChain.products(1);
       expect(product.farmLocation.latitude).to.equal(latitude);
@@ -182,7 +231,13 @@ describe("OrganicSupplyChain - Comprehensive Tests", function () {
     beforeEach(async function () {
       const plantedDate = await time.latest() - 30 * 24 * 60 * 60;
       await organicChain.connect(farmer).registerProduct(
-        "Organic Avocados", 1, "QmTest123", "34.0522", "-118.2437", plantedDate
+        "Organic Avocados",
+        1,
+        "QmTest123",
+        "34.0522",
+        "-118.2437",
+        plantedDate,
+        toExpectedHarvestDate(plantedDate)
       );
       productId = 1;
     });
@@ -223,7 +278,13 @@ describe("OrganicSupplyChain - Comprehensive Tests", function () {
     beforeEach(async function () {
       const plantedDate = await time.latest() - 60 * 24 * 60 * 60;
       await organicChain.connect(farmer).registerProduct(
-        "Organic Avocados", 1, "QmTest123", "34.0522", "-118.2437", plantedDate
+        "Organic Avocados",
+        1,
+        "QmTest123",
+        "34.0522",
+        "-118.2437",
+        plantedDate,
+        toExpectedHarvestDate(plantedDate)
       );
       productId = 1;
       await organicChain.connect(farmer).updateProductStatus(productId, 1);
@@ -272,7 +333,13 @@ describe("OrganicSupplyChain - Comprehensive Tests", function () {
     beforeEach(async function () {
       const plantedDate = await time.latest() - 60 * 24 * 60 * 60;
       await organicChain.connect(farmer).registerProduct(
-        "Organic Avocados", 1, "QmTest123", "34.0522", "-118.2437", plantedDate
+        "Organic Avocados",
+        1,
+        "QmTest123",
+        "34.0522",
+        "-118.2437",
+        plantedDate,
+        toExpectedHarvestDate(plantedDate)
       );
       await organicChain.connect(farmer).updateProductStatus(1, 1);
       await organicChain.connect(processor).createBatch(1, 1000, "Boxes");
@@ -336,7 +403,13 @@ describe("OrganicSupplyChain - Comprehensive Tests", function () {
     beforeEach(async function () {
       const plantedDate = await time.latest() - 60 * 24 * 60 * 60;
       await organicChain.connect(farmer).registerProduct(
-        "Organic Avocados", 1, "QmTest123", "34.0522", "-118.2437", plantedDate
+        "Organic Avocados",
+        1,
+        "QmTest123",
+        "34.0522",
+        "-118.2437",
+        plantedDate,
+        toExpectedHarvestDate(plantedDate)
       );
       await organicChain.connect(farmer).updateProductStatus(1, 1);
       await organicChain.connect(processor).createBatch(1, 1000, "Boxes");
@@ -372,7 +445,13 @@ describe("OrganicSupplyChain - Comprehensive Tests", function () {
     beforeEach(async function () {
       const plantedDate = await time.latest() - 60 * 24 * 60 * 60;
       await organicChain.connect(farmer).registerProduct(
-        "Organic Avocados", 1, "QmTest123", "34.0522", "-118.2437", plantedDate
+        "Organic Avocados",
+        1,
+        "QmTest123",
+        "34.0522",
+        "-118.2437",
+        plantedDate,
+        toExpectedHarvestDate(plantedDate)
       );
       await organicChain.connect(farmer).updateProductStatus(1, 1);
       await organicChain.connect(processor).createBatch(1, 1000, "Boxes");
@@ -413,7 +492,13 @@ describe("OrganicSupplyChain - Comprehensive Tests", function () {
     beforeEach(async function () {
       const plantedDate = await time.latest() - 60 * 24 * 60 * 60;
       await organicChain.connect(farmer).registerProduct(
-        "Organic Avocados", 1, "QmTest123", "34.0522", "-118.2437", plantedDate
+        "Organic Avocados",
+        1,
+        "QmTest123",
+        "34.0522",
+        "-118.2437",
+        plantedDate,
+        toExpectedHarvestDate(plantedDate)
       );
       productId = 1;
     });
@@ -485,7 +570,13 @@ describe("OrganicSupplyChain - Comprehensive Tests", function () {
     beforeEach(async function () {
       const plantedDate = await time.latest() - 60 * 24 * 60 * 60;
       await organicChain.connect(farmer).registerProduct(
-        "Organic Avocados", 1, "QmTest123", "34.0522", "-118.2437", plantedDate
+        "Organic Avocados",
+        1,
+        "QmTest123",
+        "34.0522",
+        "-118.2437",
+        plantedDate,
+        toExpectedHarvestDate(plantedDate)
       );
       productId = 1;
     });
@@ -523,7 +614,13 @@ describe("OrganicSupplyChain - Comprehensive Tests", function () {
     beforeEach(async function () {
       const plantedDate = await time.latest() - 60 * 24 * 60 * 60;
       await organicChain.connect(farmer).registerProduct(
-        "Organic Avocados", 1, "QmTest123", "34.0522", "-118.2437", plantedDate
+        "Organic Avocados",
+        1,
+        "QmTest123",
+        "34.0522",
+        "-118.2437",
+        plantedDate,
+        toExpectedHarvestDate(plantedDate)
       );
       productId = 1;
     });
@@ -568,11 +665,23 @@ describe("OrganicSupplyChain - Comprehensive Tests", function () {
       const plantedDate = await time.latest() - 60 * 24 * 60 * 60;
       
       await organicChain.connect(farmer).registerProduct(
-        "Product 1", 1, "QmTest1", "34.0", "-118.0", plantedDate
+        "Product 1",
+        1,
+        "QmTest1",
+        "34.0",
+        "-118.0",
+        plantedDate,
+        toExpectedHarvestDate(plantedDate)
       );
 
       await organicChain.connect(farmer).registerProduct(
-        "Product 2", 0, "QmTest2", "35.0", "-119.0", plantedDate
+        "Product 2",
+        0,
+        "QmTest2",
+        "35.0",
+        "-119.0",
+        plantedDate,
+        toExpectedHarvestDate(plantedDate)
       );
 
       await organicChain.connect(farmer).updateProductStatus(1, 1);
@@ -616,7 +725,13 @@ describe("OrganicSupplyChain - Comprehensive Tests", function () {
       const plantedDate = await time.latest() - 30 * 24 * 60 * 60;
       await expect(
         organicChain.connect(farmer).registerProduct(
-          "Product", 1, "QmTest", "34.0", "-118.0", plantedDate
+          "Product",
+          1,
+          "QmTest",
+          "34.0",
+          "-118.0",
+          plantedDate,
+          toExpectedHarvestDate(plantedDate)
         )
       ).to.be.reverted;
     });
@@ -628,7 +743,13 @@ describe("OrganicSupplyChain - Comprehensive Tests", function () {
       const plantedDate = await time.latest() - 30 * 24 * 60 * 60;
       await expect(
         organicChain.connect(farmer).registerProduct(
-          "Product", 1, "QmTest", "34.0", "-118.0", plantedDate
+          "Product",
+          1,
+          "QmTest",
+          "34.0",
+          "-118.0",
+          plantedDate,
+          toExpectedHarvestDate(plantedDate)
         )
       ).to.not.be.reverted;
     });
@@ -655,7 +776,13 @@ describe("OrganicSupplyChain - Comprehensive Tests", function () {
     it("Should preserve state after upgrade", async function () {
       const plantedDate = await time.latest() - 30 * 24 * 60 * 60;
       await organicChain.connect(farmer).registerProduct(
-        "Product Before Upgrade", 1, "QmTest", "34.0", "-118.0", plantedDate
+        "Product Before Upgrade",
+        1,
+        "QmTest",
+        "34.0",
+        "-118.0",
+        plantedDate,
+        toExpectedHarvestDate(plantedDate)
       );
 
       const OrganicSupplyChainV2 = await ethers.getContractFactory("OrganicSupplyChain");
@@ -716,7 +843,13 @@ describe("OrganicSupplyChain - Comprehensive Tests", function () {
     it("Should handle product with no batches", async function () {
       const plantedDate = await time.latest() - 30 * 24 * 60 * 60;
       await organicChain.connect(farmer).registerProduct(
-        "Product", 1, "QmTest", "34.0", "-118.0", plantedDate
+        "Product",
+        1,
+        "QmTest",
+        "34.0",
+        "-118.0",
+        plantedDate,
+        toExpectedHarvestDate(plantedDate)
       );
 
       const [product, batches] = await organicChain.getProductHistory(1);

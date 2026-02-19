@@ -26,6 +26,17 @@ interface ProductTraceProps {
 }
 
 const ProductTrace: React.FC<ProductTraceProps> = ({ product, batches }) => {
+  const normalizeStatus = (status: any) => {
+    if (typeof status === 'number') return status;
+    if (typeof status === 'string') {
+      const index = PRODUCT_STATUS.findIndex(
+        (label: string) => label.toLowerCase() === status.toLowerCase()
+      );
+      return index >= 0 ? index : 0;
+    }
+    return 0;
+  };
+
   const getStatusIcon = (status: number) => {
     const icons = [
       <FaSeedling />,      // Planted
@@ -48,7 +59,7 @@ const ProductTrace: React.FC<ProductTraceProps> = ({ product, batches }) => {
       events.push({
         status: 0,
         timestamp: Number(product.plantedDate),
-        location: `${product.farmLocation.latitude}, ${product.farmLocation.longitude}`,
+        location: `${product.farmLocation?.latitude || '0'}, ${product.farmLocation?.longitude || '0'}`,
       });
     }
 
@@ -63,14 +74,55 @@ const ProductTrace: React.FC<ProductTraceProps> = ({ product, batches }) => {
 
     // Add batch events
     batches.forEach((batch) => {
-      if (batch.processedDate && Number(batch.processedDate) > 0) {
+      const processedTimestamp = Number(batch.processedDate || batch.processingDate || 0);
+      if (processedTimestamp > 0) {
         events.push({
           status: 2,
-          timestamp: Number(batch.processedDate),
+          timestamp: processedTimestamp,
+          actor: batch.processor,
+        });
+        events.push({
+          status: 3,
+          timestamp: processedTimestamp,
+          actor: batch.processor,
+        });
+      } else if (product.harvestDate) {
+        events.push({
+          status: 2,
+          timestamp: Number(product.harvestDate),
+          actor: batch.processor,
+        });
+        events.push({
+          status: 3,
+          timestamp: Number(product.harvestDate),
           actor: batch.processor,
         });
       }
     });
+
+    // Add transfer (In Transit)
+    if (product.transferDate && Number(product.transferDate) > 0) {
+      events.push({
+        status: 5,
+        timestamp: Number(product.transferDate),
+        actor: product.currentCustodian,
+      });
+    }
+
+    // Add delivery
+    if (product.receivedDate && Number(product.receivedDate) > 0) {
+      events.push({
+        status: 6,
+        timestamp: Number(product.receivedDate),
+        actor: product.currentCustodian,
+      });
+    } else if (normalizeStatus(product.status) >= 6) {
+      events.push({
+        status: 6,
+        timestamp: Number(product.harvestDate || Date.now() / 1000),
+        actor: product.currentCustodian,
+      });
+    }
 
     // Sort by timestamp
     return events.sort((a, b) => a.timestamp - b.timestamp);
@@ -83,7 +135,7 @@ const ProductTrace: React.FC<ProductTraceProps> = ({ product, batches }) => {
       <h3 className="text-2xl font-bold gradient-text mb-6">Product Journey</h3>
 
       {/* Timeline */}
-      <div className="relative">
+      <div className="relative" data-cy="timeline">
         {timeline.map((event, index) => (
           <motion.div
             key={index}
@@ -91,6 +143,7 @@ const ProductTrace: React.FC<ProductTraceProps> = ({ product, batches }) => {
             initial={{ opacity: 0, x: -50 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: index * 0.2 }}
+            data-cy="timeline-event"
           >
             <div className="timeline-dot flex items-center justify-center text-white">
               {getStatusIcon(event.status)}
@@ -101,7 +154,7 @@ const ProductTrace: React.FC<ProductTraceProps> = ({ product, batches }) => {
                 <h4 className="font-bold text-lg text-primary-400">
                   {PRODUCT_STATUS[event.status]}
                 </h4>
-                <span className="text-sm text-gray-400">
+                <span className="text-sm text-gray-400" data-cy="timestamp">
                   {formatDate(event.timestamp)}
                 </span>
               </div>
@@ -235,12 +288,12 @@ const ProductTrace: React.FC<ProductTraceProps> = ({ product, batches }) => {
       >
         <div className="flex items-center gap-4">
           <div className="text-4xl text-primary-400">
-            {getStatusIcon(Number(product.status))}
+            {getStatusIcon(normalizeStatus(product.status))}
           </div>
           <div>
             <h4 className="text-sm text-gray-400">Current Status</h4>
             <p className="text-2xl font-bold text-primary-300">
-              {PRODUCT_STATUS[Number(product.status)]}
+              {PRODUCT_STATUS[normalizeStatus(product.status)]}
             </p>
           </div>
         </div>

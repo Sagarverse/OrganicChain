@@ -31,6 +31,12 @@ declare global {
        * @example cy.waitForTransaction()
        */
       waitForTransaction(): Chainable<void>;
+
+      /**
+       * Custom command to move focus with Tab
+       * @example cy.get('body').tab()
+       */
+      tab(): Chainable<JQuery<HTMLElement>>;
     }
   }
 }

@@ -1,61 +1,61 @@
 {
-  "contractAddress": "0xb7278A61aa25c888815aFC32Ad3cC52fF24fE575",
+  "contractAddress": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
   "network": "localhost",
-  "timestamp": "2026-02-19T11:27:00.247Z",
+  "timestamp": "2026-02-19T12:13:44.677Z",
   "products": [
     {
-      "productId": 1,
-      "batchId": 1,
+      "productId": 3,
+      "batchId": 2,
       "name": "Organic Hass Avocados",
       "farmer": "Green Valley Farms",
       "location": "California, USA",
-      "score": "70",
-      "qrData": "1"
-    },
-    {
-      "productId": 2,
-      "batchId": 2,
-      "name": "Heirloom Tomatoes",
-      "farmer": "Sunshine Organic Gardens",
-      "location": "Florida, USA",
-      "score": "70",
-      "qrData": "2"
-    },
-    {
-      "productId": 3,
-      "batchId": 3,
-      "name": "Wild Blueberries",
-      "farmer": "Coastal Berry Co-op",
-      "location": "Maine, USA",
-      "score": "70",
+      "score": "100",
       "qrData": "3"
     },
     {
       "productId": 4,
-      "batchId": 4,
-      "name": "Organic Honeycrisp Apples",
-      "farmer": "Cascade Orchards",
-      "location": "Washington, USA",
-      "score": "70",
+      "batchId": 3,
+      "name": "Heirloom Tomatoes",
+      "farmer": "Sunshine Organic Gardens",
+      "location": "Florida, USA",
+      "score": "100",
       "qrData": "4"
     },
     {
       "productId": 5,
-      "batchId": 5,
-      "name": "Heritage Purple Potatoes",
-      "farmer": "Mountain View Farm",
-      "location": "Idaho, USA",
-      "score": "70",
+      "batchId": 4,
+      "name": "Wild Blueberries",
+      "farmer": "Coastal Berry Co-op",
+      "location": "Maine, USA",
+      "score": "100",
       "qrData": "5"
     },
     {
       "productId": 6,
+      "batchId": 5,
+      "name": "Organic Honeycrisp Apples",
+      "farmer": "Cascade Orchards",
+      "location": "Washington, USA",
+      "score": "100",
+      "qrData": "6"
+    },
+    {
+      "productId": 7,
       "batchId": 6,
+      "name": "Heritage Purple Potatoes",
+      "farmer": "Mountain View Farm",
+      "location": "Idaho, USA",
+      "score": "100",
+      "qrData": "7"
+    },
+    {
+      "productId": 8,
+      "batchId": 7,
       "name": "Suspicious Organic Kale",
       "farmer": "Unknown Supplier",
       "location": "Unknown",
       "score": "75",
-      "qrData": "6",
+      "qrData": "8",
       "isFraud": true
     }
   ],

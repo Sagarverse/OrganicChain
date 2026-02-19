@@ -229,6 +229,7 @@ async function main() {
     const now = Math.floor(Date.now() / 1000);
     const plantedDate = now - (90 * 24 * 60 * 60);
     const harvestDate = now - (30 * 24 * 60 * 60);
+    const expectedHarvestDate = plantedDate + (60 * 24 * 60 * 60);
 
     // Register product as farmer
     console.log("2️⃣  Registering product on blockchain...");
@@ -238,36 +239,37 @@ async function main() {
       ipfsHash,
       coords.lat,
       coords.long,
-      plantedDate
+      plantedDate,
+      expectedHarvestDate
     );
     await regTx.wait();
     const productId = i + 1;
     console.log(`   ✓ Product ID: ${productId}`);
 
     // Update to harvested
-    console.log("3️⃣  Updating status to Harvested...");
-    await (await contract.connect(farmerAccount).updateProductStatus(productId, 1)).wait();
+    console.log("3️⃣  Harvesting product...");
+    const harvestNotes = `Harvested with care at ${product.location}`;
+    await (await contract.connect(farmerAccount).harvestProduct(productId, 250, harvestNotes)).wait();
 
     // Create batch (processor)
-    console.log("4️⃣  Creating processing batch...");
+    console.log("4️⃣  Processing batch...");
     const quantity = Math.floor(Math.random() * 400) + 200; // 200-600 kg
-    const batchTx = await contract.connect(processorAccount).createBatch(
+    const temperatures = Array.from({ length: 3 }, () => Math.floor(Math.random() * 800) + 200);
+    const humidities = Array.from({ length: 3 }, () => Math.floor(Math.random() * 1500) + 6500);
+    const batchTx = await contract.connect(processorAccount).processBatch(
       productId,
       quantity,
-      `Organic certified packaging - Batch ${productId}-${Date.now()}`
+      `${product.location} Processing Facility`,
+      temperatures,
+      humidities,
+      "Washed, sorted, and packed",
+      ipfsHash
     );
     await batchTx.wait();
     const batchId = productId;
     console.log(`   ✓ Batch ID: ${batchId}, Quantity: ${quantity}kg`);
-
-    // Add sensor data
     console.log("5️⃣  Recording IoT sensor data...");
-    for (let j = 0; j < 3; j++) {
-      const temp = Math.floor(Math.random() * 800) + 200; // 2-10°C
-      const humidity = Math.floor(Math.random() * 1500) + 6500; // 65-80%
-      await (await contract.connect(processorAccount).addSensorData(batchId, temp, humidity)).wait();
-    }
-    console.log(`   ✓ Recorded 3 temperature/humidity readings`);
+    console.log(`   ✓ Sample reading: ${temperatures[0] / 100}°C, ${humidities[0] / 100}% humidity`);
 
     // Track location
     console.log("6️⃣  Tracking GPS location...");
@@ -295,17 +297,24 @@ async function main() {
     await (await contract.connect(processorAccount).addCertificateToBatch(batchId, certId)).wait();
     console.log(`   ✓ Certificate ${certId} approved and linked`);
 
-    // Update to processed
-    console.log("8️⃣  Completing processing...");
-    await (await contract.connect(processorAccount).updateProductStatus(productId, 3)).wait();
-
     // Transfer custody
-    console.log("9️⃣  Transferring custody to retailer...");
-    await (await contract.connect(farmerAccount).transferCustody(batchId, retailerAccount.address)).wait();
-    
-    // Update to in transit then delivered
-    await (await contract.connect(retailerAccount).updateProductStatus(productId, 5)).wait(); // InTransit
-    await (await contract.connect(retailerAccount).updateProductStatus(productId, 6)).wait(); // Delivered
+    console.log("8️⃣  Transferring custody to retailer...");
+    await (await contract.connect(processorAccount).transferCustody(
+      productId,
+      retailerAccount.address,
+      "Shipment dispatched to retailer"
+    )).wait();
+
+    // Retailer receives product
+    const receivedDate = now;
+    const expiryDate = now + (14 * 24 * 60 * 60);
+    await (await contract.connect(retailerAccount).receiveProduct(
+      productId,
+      receivedDate,
+      expiryDate,
+      4999,
+      "Received in good condition"
+    )).wait();
     console.log("   ✓ Status: Delivered");
 
     // Get final score

@@ -22,13 +22,17 @@ async function main() {
     
     // Try to register a test product
     console.log("\n🌱 Attempting to register a test product...");
+    const plantedDate = Math.floor(Date.now() / 1000) - 86400 * 30;
+    const expectedHarvestDate = plantedDate + 86400 * 15;
+
     const tx = await contract.connect(farmer).registerProduct(
       "Test Product",
       0, // CropType.Vegetables
       "QmTestHash123",
       "34.0522",
       "-118.2437",
-      Math.floor(Date.now() / 1000) - 86400 * 30 // 30 days ago
+      plantedDate,
+      expectedHarvestDate
     );
     
     const receipt = await tx.wait();

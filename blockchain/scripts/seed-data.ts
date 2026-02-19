@@ -110,48 +110,46 @@ async function main() {
 
     // Register product
     console.log("1️⃣ Registering product...");
+    const plantedDate = Math.floor(product.plantedDate / 1000);
+    const expectedHarvestDate = plantedDate + (90 * 24 * 60 * 60);
     const tx = await contract.registerProduct(
       product.name,
       product.cropType,
       product.certHash,
       product.lat,
       product.long,
-      product.plantedDate
+      plantedDate,
+      expectedHarvestDate
     );
     await tx.wait();
     
-    const productId = i + 1;
+    const productId = Number(await contract.getTotalProducts());
     console.log(`   ✓ Product ID: ${productId}`);
 
     // Simulate harvest
-    console.log("2️⃣ Updating to Harvested...");
-    await (await contract.updateProductStatus(productId, 1)).wait(); // Harvested
+    console.log("2️⃣ Harvesting product...");
+    await (await contract.harvestProduct(productId, 250, "Harvested at peak ripeness")).wait();
     console.log("   ✓ Status: Harvested");
 
-    // Create batch (processor)
-    console.log("3️⃣ Creating processing batch...");
-    const batchTx = await contract.connect(processor).createBatch(
+    // Process batch (processor)
+    console.log("3️⃣ Processing batch...");
+    const temperatures = Array.from({ length: 5 }, () => Math.floor(Math.random() * 1000) + 200);
+    const humidities = Array.from({ length: 5 }, () => Math.floor(Math.random() * 2000) + 6000);
+    const batchTx = await contract.connect(processor).processBatch(
       productId,
       Math.floor(Math.random() * 500) + 100, // 100-600 kg
-      `Certified Organic Packaging - Batch ${productId}-${Date.now()}`
+      `${product.location} Processing Facility`,
+      temperatures,
+      humidities,
+      "Washed, sorted, and packed",
+      `QmProcessingCert${productId}${Date.now()}`
     );
     await batchTx.wait();
-    const batchId = i + 1;
+    const batchId = Number(await contract.getTotalBatches());
     console.log(`   ✓ Batch ID: ${batchId}`);
 
-    // Add sensor data during processing
     console.log("4️⃣ Recording sensor data during processing...");
-    const sensorReadings = 5;
-    for (let j = 0; j < sensorReadings; j++) {
-      const temp = Math.floor(Math.random() * 1000) + 200; // 2-12°C
-      const humidity = Math.floor(Math.random() * 2000) + 6000; // 60-80%
-      await (await contract.connect(processor).addSensorData(batchId, temp, humidity)).wait();
-      
-      if (j === 0) {
-        console.log(`   ✓ Sample reading: ${temp/100}°C, ${humidity/100}% humidity`);
-      }
-    }
-    console.log(`   ✓ Recorded ${sensorReadings} sensor readings`);
+    console.log(`   ✓ Sample reading: ${temperatures[0]/100}°C, ${humidities[0]/100}% humidity`);
 
     // Add location tracking
     console.log("5️⃣ Tracking location during transport...");
@@ -176,7 +174,7 @@ async function main() {
       `QmCert${productId}${Date.now()}`
     );
     await certTx.wait();
-    const certId = i + 1;
+    const certId = Number(await contract.getTotalCertificates());
     
     // Approve certificate
     await (await contract.connect(inspector).approveCertificate(certId)).wait();
@@ -186,23 +184,26 @@ async function main() {
     await (await contract.connect(processor).addCertificateToBatch(batchId, certId)).wait();
     console.log("   ✓ Certificate linked to batch");
 
-    // Update to processed
-    console.log("7️⃣ Completing processing...");
-    await (await contract.connect(processor).updateProductStatus(productId, 3)).wait(); // Processed
-    console.log("   ✓ Status: Processed");
-
-    // Transfer custody to processor first (current custodian starts as deployer)
-    console.log("8️⃣ Transferring to processor...");
-    await (await contract.connect(deployer).transferCustody(batchId, processor.address)).wait();
-    console.log("   ✓ Custody transferred to processor");
-
     // Transfer custody to retailer
-    console.log("9️⃣ Transferring to retailer...");
-    await (await contract.connect(processor).transferCustody(batchId, retailer.address)).wait();
+    console.log("8️⃣ Transferring to retailer...");
+    await (await contract.connect(processor)["transferCustody(uint256,address,string)"](
+      productId,
+      retailer.address,
+      "Shipment dispatched to retailer"
+    )).wait();
     console.log("   ✓ Custody transferred to retailer");
 
-    // Update to delivered
-    await (await contract.connect(retailer).updateProductStatus(productId, 6)).wait(); // Delivered
+    // Retailer receives product
+    console.log("9️⃣ Retailer receiving product...");
+    const receivedDate = Math.floor(Date.now() / 1000);
+    const expiryDate = receivedDate + (14 * 24 * 60 * 60);
+    await (await contract.connect(retailer).receiveProduct(
+      productId,
+      receivedDate,
+      expiryDate,
+      4999,
+      "Received in good condition"
+    )).wait();
     console.log("   ✓ Status: Delivered");
 
     // Get authenticity score
@@ -225,37 +226,45 @@ async function main() {
   console.log("⚠️  DEMO: Creating Fraudulent Product");
   console.log(`${"=".repeat(60)}`);
   
+  const fraudPlantedDate = Math.floor((Date.now() - 30 * 24 * 60 * 60 * 1000) / 1000);
+  const fraudExpectedHarvestDate = fraudPlantedDate + (60 * 24 * 60 * 60);
   const fraudTx = await contract.registerProduct(
     "Suspicious Organic Kale",
     0,
     "QmFraud123", // Suspicious cert
     "0.0000",
     "0.0000",
-    Date.now() - 30 * 24 * 60 * 60 * 1000
+    fraudPlantedDate,
+    fraudExpectedHarvestDate
   );
   await fraudTx.wait();
   
-  const fraudId = 6;
+  const fraudId = Number(await contract.getTotalProducts());
   
-  // Create batch with anomalous sensor data
-  const fraudBatchTx = await contract.connect(processor).createBatch(
+  // Harvest and process with anomalous sensor data
+  await (await contract.harvestProduct(fraudId, 50, "Harvested under questionable conditions")).wait();
+
+  const fraudTemps = Array.from({ length: 5 }, () => 5000); // 50C anomaly
+  const fraudHumidities = Array.from({ length: 5 }, () => 9500);
+  const fraudBatchTx = await contract.connect(processor).processBatch(
     fraudId,
     50,
-    "Questionable Packaging"
+    "Unknown Facility",
+    fraudTemps,
+    fraudHumidities,
+    "Questionable Processing",
+    "QmFraudProcessing"
   );
   await fraudBatchTx.wait();
   
-  // Add anomalous sensor data (temperature too high)
-  for (let j = 0; j < 5; j++) {
-    await (await contract.connect(processor).addSensorData(6, 5000, 9500)).wait(); // 50°C - anomaly!
-  }
-  
+  // Flag tamper to demonstrate score drop
+  await (await contract.flagTamper(fraudId, "Tamper test: inconsistent logs")).wait();
   const fraudScore = await contract.getAuthenticityScore(fraudId);
   console.log(`🚨 Fraud Detection Score: ${fraudScore}/100 (Multiple anomalies detected!)`);
 
   createdProducts.push({
     productId: fraudId,
-    batchId: 6,
+    batchId: Number(await contract.getTotalBatches()),
     name: "Suspicious Organic Kale",
     farmer: "Unknown Supplier",
     location: "Unknown",

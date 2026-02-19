@@ -8,7 +8,7 @@ export default function App({ Component, pageProps }: AppProps) {
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
-      <main className="flex-grow pt-24 px-6 pb-12">
+      <main className="flex-grow pt-24 px-6 pb-12" role="main">
         <div className="max-w-7xl mx-auto">
           <Component {...pageProps} />
         </div>

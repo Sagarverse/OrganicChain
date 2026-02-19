@@ -17,7 +17,7 @@ const VerificationBadge: React.FC<VerificationBadgeProps> = ({
     if (score >= 90) return 'text-green-400';
     if (score >= 70) return 'text-yellow-400';
     if (score >= 50) return 'text-orange-400';
-    return 'text-red-400';
+    return 'text-red-500';
   };
 
   const getScoreBg = () => {
@@ -31,6 +31,13 @@ const VerificationBadge: React.FC<VerificationBadgeProps> = ({
     if (score >= 90) return <FaCheckCircle className="text-3xl" />;
     if (score >= 50) return <FaExclamationTriangle className="text-3xl" />;
     return <FaTimesCircle className="text-3xl" />;
+  };
+
+  const getScoreClass = () => {
+    if (score >= 90) return 'score-high';
+    if (score >= 70) return 'score-medium';
+    if (score >= 50) return 'score-low';
+    return 'score-critical';
   };
 
   return (
@@ -57,15 +64,21 @@ const VerificationBadge: React.FC<VerificationBadgeProps> = ({
                 : score >= 50
                 ? 'from-orange-500 to-orange-400'
                 : 'from-red-500 to-red-400'
-            }`}
+            } ${getScoreClass()}`}
             initial={{ width: 0 }}
             animate={{ width: `${score}%` }}
             transition={{ duration: 1, ease: 'easeOut' }}
+            data-cy="score-indicator"
           />
         </div>
         <div className="flex justify-between mt-2 text-sm text-gray-400">
           <span>0</span>
-          <span className={`font-bold text-lg ${getScoreColor()}`}>{score}/100</span>
+          <span
+            className={`font-bold text-lg ${getScoreColor()} ${getScoreClass()}`}
+            data-cy="authenticity-score"
+          >
+            {score}/100
+          </span>
           <span>100</span>
         </div>
       </div>
@@ -73,9 +86,13 @@ const VerificationBadge: React.FC<VerificationBadgeProps> = ({
       {/* Status */}
       <div className="flex items-center justify-center gap-2 mb-2">
         {isAuthentic ? (
-          <span className="text-green-400 font-semibold">✓ Verified Authentic</span>
+          <span className="text-green-400 font-semibold" data-cy="authentic-badge">
+            ✓ Verified Authentic
+          </span>
         ) : (
-          <span className="text-red-400 font-semibold">⚠ Authenticity Concerns</span>
+          <span className="text-red-400 font-semibold" data-cy="warning-badge">
+            Verification Failed
+          </span>
         )}
       </div>
 

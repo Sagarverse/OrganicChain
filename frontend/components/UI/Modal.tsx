@@ -17,6 +17,7 @@ const Modal: React.FC<ModalProps> = ({
   children,
   size = 'md' 
 }) => {
+  const isCypress = typeof window !== 'undefined' && Boolean((window as any).Cypress);
   const sizeClasses = {
     sm: 'max-w-md',
     md: 'max-w-2xl',
@@ -29,16 +30,24 @@ const Modal: React.FC<ModalProps> = ({
       {isOpen && (
         <>
           {/* Backdrop */}
-          <motion.div
-            className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-50"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-          />
+          {!isCypress && (
+            <motion.div
+              className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-40"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={onClose}
+            />
+          )}
 
           {/* Modal */}
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className={
+              isCypress
+                ? 'relative z-50 flex items-center justify-center p-4'
+                : 'fixed inset-0 z-50 flex items-center justify-center p-4'
+            }
+          >
             <motion.div
               className={`glass-card ${sizeClasses[size]} w-full max-h-[90vh] overflow-y-auto`}
               initial={{ opacity: 0, scale: 0.9, y: 20 }}

@@ -21,17 +21,19 @@ import {
   deleteProduct, 
   deleteBatch, 
   recallProduct,
+  flagTamper,
   checkRole,
   getCurrentAccount,
   grantRole
 } from '../../utils/blockchain';
+import { PRODUCT_STATUS } from '../../utils/constants';
 
 interface Product {
   id: number;
   name: string;
   category: string;
   farmer: string;
-  status: string;
+  status: number;
   harvestDate: number;
   quantity: number;
 }
@@ -42,8 +44,10 @@ interface Batch {
   processor: string;
   quantity: number;
   processingDate: number;
-  expiryDate: number;
-  completed: boolean;
+  status: number;
+  processingLocation?: string;
+  processingNotes?: string;
+  processingCertHash?: string;
 }
 
 interface ConfirmModal {
@@ -168,6 +172,22 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
+  const handleFlagTamper = async (productId: number, name?: string) => {
+    const reason = prompt(`Provide a tamper reason for ${name || `Product #${productId}`}:`);
+    if (!reason || !reason.trim()) {
+      return;
+    }
+
+    try {
+      await flagTamper(productId, reason.trim());
+      alert('✅ Tamper flag recorded. Authenticity score updated.');
+      loadData();
+    } catch (error) {
+      console.error('Error flagging tamper:', error);
+      alert('Failed to flag tamper. You may not have permission.');
+    }
+  };
+
   const handleCreateUser = async () => {
     setIsCreatingUser(true);
     try {
@@ -241,15 +261,15 @@ const AdminDashboard: React.FC = () => {
   };
 
   const filteredProducts = products.filter(product =>
-    product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.farmer.toLowerCase().includes(searchTerm.toLowerCase())
+    (product?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false) ||
+    (product?.category?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false) ||
+    (product?.farmer?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false)
   );
 
   const filteredBatches = batches.filter(batch =>
-    batch.id.toString().includes(searchTerm) ||
-    batch.productId.toString().includes(searchTerm) ||
-    batch.processor.toLowerCase().includes(searchTerm.toLowerCase())
+    batch?.id?.toString().includes(searchTerm) ||
+    batch?.productId?.toString().includes(searchTerm) ||
+    (batch?.processor?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false)
   );
 
   if (!isAdmin) {
@@ -325,7 +345,7 @@ const AdminDashboard: React.FC = () => {
             <FaChartLine className="text-purple-400 text-3xl mb-3" />
             <h3 className="text-gray-300 text-sm mb-1">Active Products</h3>
             <p className="text-3xl font-bold text-white">
-              {products.filter(p => p.status !== 'Recalled').length}
+              {products.filter(p => Number(p.status) !== 7).length}
             </p>
           </motion.div>
 
@@ -338,7 +358,7 @@ const AdminDashboard: React.FC = () => {
             <FaExclamationTriangle className="text-yellow-400 text-3xl mb-3" />
             <h3 className="text-gray-300 text-sm mb-1">Recalled</h3>
             <p className="text-3xl font-bold text-white">
-              {products.filter(p => p.status === 'Recalled').length}
+              {products.filter(p => Number(p.status) === 7).length}
             </p>
           </motion.div>
         </div>
@@ -436,22 +456,29 @@ const AdminDashboard: React.FC = () => {
                         <td className="px-6 py-4 text-white font-medium">{product.name}</td>
                         <td className="px-6 py-4 text-gray-300">{product.category}</td>
                         <td className="px-6 py-4 text-gray-300 font-mono text-xs">
-                          {product.farmer.slice(0, 6)}...{product.farmer.slice(-4)}
+                          {product.farmer ? `${product.farmer.slice(0, 6)}...${product.farmer.slice(-4)}` : 'N/A'}
                         </td>
                         <td className="px-6 py-4">
                           <span
                             className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                              product.status === 'Recalled'
+                              Number(product.status) === 7
                                 ? 'bg-red-500/20 text-red-400'
                                 : 'bg-green-500/20 text-green-400'
                             }`}
                           >
-                            {product.status}
+                            {PRODUCT_STATUS[Number(product.status)] || 'Unknown'}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-white">{product.quantity} kg</td>
                         <td className="px-6 py-4">
                           <div className="flex space-x-2">
+                            <button
+                              onClick={() => handleFlagTamper(product.id, product.name)}
+                              className="p-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 rounded-lg transition-colors"
+                              title="Flag Tamper"
+                            >
+                              <FaChartLine />
+                            </button>
                             <button
                               onClick={() => openConfirmModal('recall', product.id, product.name)}
                               className="p-2 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 rounded-lg transition-colors"
@@ -515,18 +542,18 @@ const AdminDashboard: React.FC = () => {
                         <td className="px-6 py-4 text-white">#{batch.id}</td>
                         <td className="px-6 py-4 text-white">#{batch.productId}</td>
                         <td className="px-6 py-4 text-gray-300 font-mono text-xs">
-                          {batch.processor.slice(0, 6)}...{batch.processor.slice(-4)}
+                          {batch.processor ? `${batch.processor.slice(0, 6)}...${batch.processor.slice(-4)}` : 'N/A'}
                         </td>
                         <td className="px-6 py-4 text-white">{batch.quantity} kg</td>
                         <td className="px-6 py-4">
                           <span
                             className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                              batch.completed
+                              Number(batch.status) === 3
                                 ? 'bg-green-500/20 text-green-400'
                                 : 'bg-yellow-500/20 text-yellow-400'
                             }`}
                           >
-                            {batch.completed ? 'Completed' : 'Processing'}
+                            {PRODUCT_STATUS[Number(batch.status)] || 'Unknown'}
                           </span>
                         </td>
                         <td className="px-6 py-4">
@@ -577,7 +604,7 @@ const AdminDashboard: React.FC = () => {
                       <tr key={index} className="border-t border-gray-700 hover:bg-gray-700/30">
                         <td className="px-6 py-4 text-white">{index + 1}</td>
                         <td className="px-6 py-4 text-gray-300 font-mono text-xs">
-                          {user.address.slice(0, 10)}...{user.address.slice(-8)}
+                          {user.address ? `${user.address.slice(0, 10)}...${user.address.slice(-8)}` : 'N/A'}
                         </td>
                         <td className="px-6 py-4">
                           <span

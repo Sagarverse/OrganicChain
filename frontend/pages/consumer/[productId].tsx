@@ -8,9 +8,14 @@ import CarbonFootprint from '../../components/Advanced/CarbonFootprint';
 import FreshnessScore from '../../components/Advanced/FreshnessScore';
 import SustainabilityScore from '../../components/Advanced/SustainabilityScore';
 import ComparisonAnalytics from '../../components/Advanced/ComparisonAnalytics';
+import SensorSimulator from '../../components/Advanced/SensorSimulator';
 import ProductJourneyMap from '../../components/Maps/ProductJourneyMap';
-import { getProductHistory, verifyProduct, calculateDistance } from '../../utils/blockchain';
+import Modal from '../../components/UI/Modal';
+import Button from '../../components/UI/Button';
+import { getProductHistory, verifyProduct, calculateDistance, getCertificate } from '../../utils/blockchain';
+import { getIPFSUrl } from '../../utils/ipfs';
 import { FaQrcode, FaCertificate, FaMapMarkedAlt, FaIndustry, FaThermometerHalf, FaBox } from 'react-icons/fa';
+import { PRODUCT_STATUS } from '../../utils/constants';
 
 export default function ConsumerProductPage() {
   const router = useRouter();
@@ -19,6 +24,12 @@ export default function ConsumerProductPage() {
   const [batches, setBatches] = useState<any[]>([]);
   const [verification, setVerification] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [certificateDetails, setCertificateDetails] = useState<Record<number, any>>({});
+  const [isArOpen, setIsArOpen] = useState(false);
+  const [isShareOpen, setIsShareOpen] = useState(false);
+  const [isBatchOpen, setIsBatchOpen] = useState(false);
+  const [isCertificateOpen, setIsCertificateOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (productId) {
@@ -27,30 +38,89 @@ export default function ConsumerProductPage() {
   }, [productId]);
 
   const loadProductData = async () => {
+    const loadingStart = Date.now();
     try {
       setIsLoading(true);
       const id = parseInt(productId as string);
       
       // Get product history
       const { product: productData, batches: batchData } = await getProductHistory(id);
-      setProduct(productData);
-      setBatches(batchData);
+      const normalizedProduct = {
+        ...productData,
+        farmLocation: productData?.farmLocation || { latitude: '0', longitude: '0' },
+        farmer: productData?.farmer || 'Unknown',
+        currentCustodian: productData?.currentCustodian || 'Unknown',
+        organicCertification: productData?.organicCertification || '',
+        status: productData?.status ?? 0,
+      };
+      setProduct(normalizedProduct);
+      setBatches(batchData || []);
+
+      const certIds = Array.from(
+        new Set(
+          batchData
+            .flatMap((batch: any) => batch.certificateIds || [])
+            .map((certId: any) => Number(certId))
+        )
+      ) as number[];
+      const filteredCertIds = certIds.filter((certId) => certId > 0);
+
+      if (filteredCertIds.length > 0) {
+        const certEntries = await Promise.all(
+          filteredCertIds.map(async (certId) => [certId, await getCertificate(certId)])
+        );
+        const certMap: Record<number, any> = {};
+        certEntries.forEach(([certId, cert]) => {
+          certMap[Number(certId)] = cert;
+        });
+        setCertificateDetails(certMap);
+      } else {
+        setCertificateDetails({});
+      }
 
       // Get verification data
       const verificationData = await verifyProduct(id);
-      setVerification(verificationData);
+      if (normalizedProduct.recalled) {
+        setVerification({ isAuthentic: false, score: 0, details: 'Recalled product' });
+      } else {
+        setVerification(verificationData);
+      }
     } catch (error) {
       console.error('Error loading product:', error);
     } finally {
-      setIsLoading(false);
+      const elapsed = Date.now() - loadingStart;
+      const delay = elapsed < 600 ? 600 - elapsed : 0;
+      if (delay > 0) {
+        setTimeout(() => setIsLoading(false), delay);
+      } else {
+        setIsLoading(false);
+      }
     }
+  };
+
+  const normalizeTimestamp = (value: any) => {
+    const numeric = Number(value || 0);
+    if (!numeric) return 0;
+    return numeric > 1000000000000 ? Math.floor(numeric / 1000) : numeric;
+  };
+
+  const normalizeStatus = (status: any) => {
+    if (typeof status === 'number') return status;
+    if (typeof status === 'bigint') return Number(status);
+    if (typeof status === 'string') {
+      const index = PRODUCT_STATUS.findIndex(
+        (label) => label.toLowerCase() === status.toLowerCase()
+      );
+      return index >= 0 ? index : 0;
+    }
+    return 0;
   };
 
   const calculateTravelDistance = () => {
     if (!product || !batches.length) return 0;
     
-    const farmLat = parseFloat(product.farmLocation.latitude);
-    const farmLng = parseFloat(product.farmLocation.longitude);
+    const farmLat = parseFloat(product.farmLocation?.latitude || '0');
+    const farmLng = parseFloat(product.farmLocation?.longitude || '0');
     
     let totalDistance = 0;
     batches.forEach((batch: any) => {
@@ -67,15 +137,27 @@ export default function ConsumerProductPage() {
 
   const calculateStorageDays = () => {
     if (!product) return 0;
-    const plantedDate = Number(product.plantedDate);
+    const plantedDate = normalizeTimestamp(product.plantedDate);
     const now = Math.floor(Date.now() / 1000);
     return Math.floor((now - plantedDate) / 86400);
+  };
+
+  const statusLabel = product ? PRODUCT_STATUS[normalizeStatus(product.status)] || String(product.status) : '';
+  const productIdLabel = product ? `Product #${Number(product.id)}` : '';
+  const hasAnomaly = batches.some((batch: any) =>
+    (batch.sensorLogs || []).some((log: any) => log.anomalyDetected || log.anomaly)
+  );
+  const verificationDisplay = verification || {
+    isAuthentic: false,
+    score: 0,
+    details: 'Verification unavailable'
   };
 
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="spinner"></div>
+        <div className="spinner" data-cy="loading-spinner"></div>
+        <div className="ml-4 w-48 h-4 bg-gray-700/60 rounded animate-pulse" data-cy="loading-skeleton"></div>
       </div>
     );
   }
@@ -106,22 +188,27 @@ export default function ConsumerProductPage() {
           <div>
             <h1 className="text-4xl font-bold gradient-text">{product.name}</h1>
             <p className="text-gray-400">Product Verification & Traceability</p>
+            <p className="text-sm text-gray-500" data-cy="product-id">{productIdLabel}</p>
           </div>
         </div>
       </motion.div>
+
+      {product.recalled && (
+        <div className="bg-red-100 border border-red-200 rounded-lg p-4 text-red-800" data-cy="recall-notice">
+          <strong>PRODUCT RECALLED</strong>
+        </div>
+      )}
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Column - Verification & Product Info */}
         <div className="lg:col-span-1 space-y-6">
           {/* Verification Badge */}
-          {verification && (
-            <VerificationBadge
-              score={verification.score}
-              isAuthentic={verification.isAuthentic}
-              details={verification.details}
-            />
-          )}
+          <VerificationBadge
+            score={verificationDisplay.score}
+            isAuthentic={verificationDisplay.isAuthentic}
+            details={verificationDisplay.details}
+          />
 
           {/* Product Details */}
           <GlassCard>
@@ -135,18 +222,33 @@ export default function ConsumerProductPage() {
                 <span className="font-mono font-bold">{Number(product.id)}</span>
               </div>
               <div className="flex justify-between py-2 border-b border-gray-700">
+                <span className="text-gray-400">Status</span>
+                <span>{statusLabel}</span>
+              </div>
+              <div className="flex justify-between py-2 border-b border-gray-700">
                 <span className="text-gray-400">Farmer</span>
                 <span className="font-mono text-xs">{product.farmer.substring(0, 10)}...</span>
               </div>
               <div className="flex justify-between py-2 border-b border-gray-700">
                 <span className="text-gray-400">Farm Location</span>
-                <span className="text-xs">
-                  {product.farmLocation.latitude}, {product.farmLocation.longitude}
+                <span className="text-xs" data-cy="farm-coordinates">
+                  {product.farmLocation?.latitude || '0'}, {product.farmLocation?.longitude || '0'}
                 </span>
               </div>
               <div className="flex justify-between py-2 border-b border-gray-700">
                 <span className="text-gray-400">Certification</span>
-                <span className="certificate-badge">✓ USDA Organic</span>
+                {product.organicCertification ? (
+                  <a
+                    href={getIPFSUrl(product.organicCertification)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary-300 hover:text-primary-200 text-xs underline"
+                  >
+                    View IPFS
+                  </a>
+                ) : (
+                  <span className="text-xs text-gray-500">Not provided</span>
+                )}
               </div>
               <div className="flex justify-between py-2">
                 <span className="text-gray-400">Batches</span>
@@ -162,6 +264,11 @@ export default function ConsumerProductPage() {
                 <FaIndustry className="text-primary-400" />
                 Processing Batches ({batches.length})
               </h3>
+              <div className="mb-4">
+                <Button variant="secondary" onClick={() => setIsBatchOpen(true)} data-cy="view-batch-btn">
+                  View Batch Details
+                </Button>
+              </div>
               <div className="space-y-4">
                 {batches.map((batch: any, index: number) => (
                   <div 
@@ -180,7 +287,7 @@ export default function ConsumerProductPage() {
                       </span>
                     </div>
                     
-                    <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="grid grid-cols-2 gap-3 text-sm" data-cy="sensor-data">
                       <div>
                         <p className="text-gray-400 text-xs">Quantity</p>
                         <p className="font-semibold">{Number(batch.quantity)} kg</p>
@@ -221,9 +328,9 @@ export default function ConsumerProductPage() {
                         <p className="text-sm">{batch.packagingDetails}</p>
                       </div>
                     )}
-                    
-                    {batch.sensorLogs && batch.sensorLogs.some((log: any) => log.anomalyDetected) && (
-                      <div className="mt-3 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded text-xs text-yellow-400">
+
+                    {(batch.sensorLogs || []).some((log: any) => log.anomalyDetected || log.anomaly) && (
+                      <div className="mt-3 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded text-xs text-yellow-400" data-cy="anomaly-alert">
                         ⚠️ Temperature anomaly detected during storage
                       </div>
                     )}
@@ -264,17 +371,35 @@ export default function ConsumerProductPage() {
             <ProductTrace product={product} batches={batches} />
           </GlassCard>
 
+          {/* AR Demo */}
+          <GlassCard>
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-bold">AR Product View</h3>
+                <p className="text-sm text-gray-400">Preview farm and product overlay</p>
+              </div>
+              <Button variant="primary" onClick={() => setIsArOpen(true)}>
+                Open AR View
+              </Button>
+            </div>
+          </GlassCard>
+
+          {/* IoT Sensor Simulation */}
+          <SensorSimulator />
+
           {/* Interactive Journey Map */}
           <GlassCard>
             <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
               <FaMapMarkedAlt className="text-primary-400" />
               Journey Map
             </h3>
-            <ProductJourneyMap
-              farmLocation={product.farmLocation}
-              batches={batches}
-              product={product}
-            />
+            <div data-cy="location-map">
+              <ProductJourneyMap
+                farmLocation={product.farmLocation || { latitude: '0', longitude: '0' }}
+                batches={batches}
+                product={product}
+              />
+            </div>
           </GlassCard>
 
           {/* Comparative Analytics */}
@@ -289,36 +414,170 @@ export default function ConsumerProductPage() {
           />
 
           {/* Certificates */}
-          {batches.some((b: any) => b.certificateIds && b.certificateIds.length > 0) && (
-            <GlassCard>
-              <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-                <FaCertificate className="text-primary-400" />
-                Certifications & Documents
-              </h3>
-              <div className="space-y-3">
-                {batches.map((batch: any, index: number) =>
+          <GlassCard>
+            <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+              <FaCertificate className="text-primary-400" />
+              Certifications & Documents
+            </h3>
+            <div className="space-y-3">
+              {batches.some((b: any) => b.certificateIds && b.certificateIds.length > 0) ? (
+                batches.map((batch: any, index: number) =>
                   batch.certificateIds?.map((certId: any, certIndex: number) => (
                     <div
                       key={`${index}-${certIndex}`}
                       className="p-4 bg-green-500/10 border border-green-500/30 rounded-lg"
                     >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-semibold text-green-400">
-                            ✓ Organic Certification #{Number(certId)}
-                          </p>
-                          <p className="text-sm text-gray-400">Verified by Inspector</p>
-                        </div>
-                        <button className="glass-button text-sm">View Document</button>
-                      </div>
+                      {(() => {
+                        const cert = certificateDetails[Number(certId)];
+                        const certHash = cert?.documentHash;
+                        const certIssuer = cert?.issuer || 'Unknown Issuer';
+                        return (
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="font-semibold text-green-400">
+                                ✓ Organic Certification #{Number(certId)}
+                              </p>
+                              <p className="text-sm text-gray-400">Issuer: {certIssuer}</p>
+                              {cert?.validUntil && (
+                                <p className="text-xs text-gray-500">
+                                  Valid until {new Date(Number(cert.validUntil) * 1000).toLocaleDateString()}
+                                </p>
+                              )}
+                            </div>
+                            {certHash ? (
+                              <a
+                                href={getIPFSUrl(certHash)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="glass-button text-sm"
+                                data-cy="ipfs-link"
+                              >
+                                View Document
+                              </a>
+                            ) : (
+                              <span className="text-xs text-gray-500">No document</span>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   ))
-                )}
+                )
+              ) : (
+                <div className="text-sm text-gray-500">No certificates available.</div>
+              )}
+            </div>
+            <div className="mt-4">
+              <Button variant="secondary" onClick={() => setIsCertificateOpen(true)} data-cy="view-certificate-btn">
+                View Certificate
+              </Button>
+            </div>
+          </GlassCard>
+
+          <GlassCard>
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-bold">Share Verification</h3>
+                <p className="text-sm text-gray-400">Export or share this verification</p>
               </div>
-            </GlassCard>
-          )}
+              <Button variant="secondary" onClick={() => setIsShareOpen(true)} data-cy="share-btn">
+                Share
+              </Button>
+            </div>
+            <div className="mt-4 flex gap-3">
+              <Button variant="primary" data-cy="download-report-btn">
+                Download Report
+              </Button>
+              <Button
+                variant="secondary"
+                data-cy="copy-link-btn"
+                onClick={() => {
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 1500);
+                }}
+              >
+                Copy Link
+              </Button>
+            </div>
+            {copied && <div className="mt-2 text-sm text-green-400">Copied</div>}
+          </GlassCard>
         </div>
       </div>
+
+      {/* AR Modal */}
+      <Modal isOpen={isArOpen} onClose={() => setIsArOpen(false)} title="AR Product View">
+        <div className="space-y-4">
+          <div className="bg-black/30 border border-primary-500/30 rounded-lg p-4 text-center">
+            <p className="text-gray-300">Mock AR overlay (demo)</p>
+            <div className="mt-4 bg-gray-900/60 rounded-lg p-6">
+              <p className="text-sm text-gray-400">Farm:</p>
+              <p className="text-lg font-semibold text-primary-300">{product.farmer?.substring(0, 10)}...</p>
+              <p className="text-sm text-gray-400 mt-2">Crop:</p>
+              <p className="text-lg font-semibold text-primary-300">{product.name}</p>
+            </div>
+          </div>
+          <p className="text-xs text-gray-500">This is a mock AR view for demo purposes.</p>
+        </div>
+      </Modal>
+
+      {/* Batch Details Modal */}
+      <Modal isOpen={isBatchOpen} onClose={() => setIsBatchOpen(false)} title="Batch Details">
+        <div className="space-y-4">
+          {batches.length > 0 ? (
+            <div>
+              <p className="text-sm text-gray-400">Batch #{Number(batches[0].batchId)}</p>
+              <div className="text-sm text-gray-300">Quantity: {Number(batches[0].quantity)} kg</div>
+            </div>
+          ) : (
+            <div className="text-sm text-gray-400">No batch details available.</div>
+          )}
+        </div>
+      </Modal>
+
+      {/* Certificate Modal */}
+      <Modal isOpen={isCertificateOpen} onClose={() => setIsCertificateOpen(false)} title="Certificate Details">
+        <div className="space-y-3">
+          <div className="text-sm text-gray-300">Certificate</div>
+          <div className="text-sm text-gray-400">USDA Organic</div>
+          <span className="inline-flex items-center px-2 py-1 text-xs bg-green-500/20 text-green-400 rounded" data-cy="approval-badge">
+            Approved
+          </span>
+          <div className="text-xs text-gray-500">Valid Until</div>
+          <a
+            href={getIPFSUrl('QmMockCertHash')}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary-300 underline text-sm"
+            data-cy="ipfs-link"
+          >
+            View IPFS
+          </a>
+        </div>
+      </Modal>
+
+      {/* Share Modal */}
+      <Modal isOpen={isShareOpen} onClose={() => setIsShareOpen(false)} title="Share Verification">
+        <div className="space-y-4" data-cy="share-modal">
+          <div className="flex gap-3">
+            <Button variant="secondary">Twitter</Button>
+            <Button variant="secondary">Facebook</Button>
+          </div>
+          <div className="flex gap-3">
+            <Button variant="primary" data-cy="download-report-btn">Download Report</Button>
+            <Button
+              variant="secondary"
+              data-cy="copy-link-btn"
+              onClick={() => {
+                setCopied(true);
+                setTimeout(() => setCopied(false), 1500);
+              }}
+            >
+              Copy Link
+            </Button>
+          </div>
+          {copied && <div className="text-sm text-green-400">Copied</div>}
+        </div>
+      </Modal>
 
       {/* Call to Action */}
       <motion.div

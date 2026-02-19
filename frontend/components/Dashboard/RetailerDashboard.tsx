@@ -3,7 +3,10 @@ import { motion } from 'framer-motion';
 import { FaStore, FaTruck, FaBoxes, FaCheckCircle, FaHandHolding } from 'react-icons/fa';
 import GlassCard from '../Layout/GlassCard';
 import Button from '../UI/Button';
-import { getCurrentAccount, getAllProducts, updateProductStatus, acceptDelivery } from '../../utils/blockchain';
+import Input from '../UI/Input';
+import Modal from '../UI/Modal';
+import { getCurrentAccount, getAllProducts, receiveProduct } from '../../utils/blockchain';
+import { downloadProductQRCode } from '../../utils/qrcode';
 import { PRODUCT_STATUS } from '../../utils/constants';
 
 const RetailerDashboard: React.FC = () => {
@@ -11,6 +14,14 @@ const RetailerDashboard: React.FC = () => {
   const [products, setProducts] = useState<any[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [updatingProduct, setUpdatingProduct] = useState<number | null>(null);
+  const [isReceiveModalOpen, setIsReceiveModalOpen] = useState(false);
+  const [receiveData, setReceiveData] = useState({
+    productId: 0,
+    receivedDate: '',
+    expiryDate: '',
+    retailPrice: '',
+    notes: ''
+  });
 
   useEffect(() => {
     loadData();
@@ -35,48 +46,47 @@ const RetailerDashboard: React.FC = () => {
     }
   };
 
-  const handleUpdateStatus = async (productId: number, newStatus: number) => {
-    setUpdatingProduct(productId);
-    try {
-      await updateProductStatus(productId, newStatus);
-      alert('Product status updated successfully!');
-      await loadProducts();
-    } catch (error: any) {
-      console.error('Error updating status:', error);
-      let errorMessage = 'Failed to update status. ';
-      
-      if (error.code === 4001) {
-        errorMessage += 'You rejected the transaction.';
-      } else if (error.message?.includes('AccessControl')) {
-        errorMessage += 'Your account does not have RETAILER_ROLE.';
-      } else if (error.message) {
-        errorMessage += error.message;
-      }
-      
-      alert(errorMessage);
-    } finally {
-      setUpdatingProduct(null);
-    }
+  const openReceiveModal = (product: any) => {
+    setReceiveData({
+      productId: Number(product.id),
+      receivedDate: new Date().toISOString().slice(0, 10),
+      expiryDate: '',
+      retailPrice: '',
+      notes: ''
+    });
+    setIsReceiveModalOpen(true);
   };
 
-  const handleAcceptDelivery = async (product: any) => {
+  const handleReceiveProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+
     if (!account) {
       alert('Please connect your wallet first');
       return;
     }
 
-    if (!confirm(`Accept delivery of ${product.name}?\n\nThis will transfer custody to you as the retailer.`)) {
-      return;
-    }
-
-    setUpdatingProduct(Number(product.id));
+    setUpdatingProduct(receiveData.productId);
     try {
-      await acceptDelivery(Number(product.id));
-      alert(`✅ Delivery accepted!\n\nYou are now the custodian of ${product.name}.\nYou can now mark it for transit or delivery.`);
+      const receivedDate = Math.floor(new Date(receiveData.receivedDate).getTime() / 1000);
+      const expiryDate = receiveData.expiryDate
+        ? Math.floor(new Date(receiveData.expiryDate).getTime() / 1000)
+        : 0;
+      const retailPrice = parseInt(receiveData.retailPrice || '0');
+
+      await receiveProduct(
+        receiveData.productId,
+        receivedDate,
+        expiryDate,
+        retailPrice,
+        receiveData.notes.trim() || 'Received at retailer'
+      );
+
+      alert('✅ Product received and marked as Delivered!');
+      setIsReceiveModalOpen(false);
       await loadProducts();
     } catch (error: any) {
-      console.error('Error accepting delivery:', error);
-      alert(`Failed to accept delivery: ${error.message || 'Unknown error'}`);
+      console.error('Error receiving product:', error);
+      alert(`Failed to receive product: ${error.message || 'Unknown error'}`);
     } finally {
       setUpdatingProduct(null);
     }
@@ -85,45 +95,31 @@ const RetailerDashboard: React.FC = () => {
   const getStatusActions = (product: any) => {
     const status = Number(product.status);
     
-    // Status: 0=Planted, 1=Harvested, 2=Processing, 3=Processed, 4=InTransit, 5=Delivered
-    
-    // Accept Delivery - For Processed products not yet in retailer's custody
-    if (status === 3 && product.currentCustodian?.toLowerCase() !== account?.toLowerCase()) {
+    // Status: 0=Planted, 1=Harvested, 2=Processing, 3=Processed, 4=Packaged, 5=InTransit, 6=Delivered
+    if (status === 5 && product.currentCustodian?.toLowerCase() === account?.toLowerCase()) {
       return (
         <Button
-          onClick={() => handleAcceptDelivery(product)}
+          onClick={() => openReceiveModal(product)}
           disabled={!account || updatingProduct === product.id}
           variant="primary"
           className="w-full bg-blue-600 hover:bg-blue-700 border-blue-500"
         >
           <FaHandHolding className="inline mr-2" />
-          {updatingProduct === product.id ? 'Accepting...' : '📦 Accept Delivery'}
+          {updatingProduct === product.id ? 'Receiving...' : '📦 Receive Product'}
         </Button>
       );
     }
-    
-    if (status === 3 && product.currentCustodian?.toLowerCase() === account?.toLowerCase()) { // Processed - in retailer custody, ready for transit
+
+    if (status === 6 && product.currentCustodian?.toLowerCase() === account?.toLowerCase()) {
       return (
         <Button
-          onClick={() => handleUpdateStatus(product.id, 4)}
-          disabled={!account || updatingProduct === product.id}
-          variant="primary"
-          className="w-full"
-        >
-          <FaTruck className="inline mr-2" />
-          {updatingProduct === product.id ? 'Updating...' : 'Mark In Transit'}
-        </Button>
-      );
-    } else if (status === 4) { // In Transit - ready for delivery
-      return (
-        <Button
-          onClick={() => handleUpdateStatus(product.id, 5)}
-          disabled={!account || updatingProduct === product.id}
-          variant="primary"
+          onClick={() => downloadProductQRCode(Number(product.id), product.name)}
+          disabled={updatingProduct === product.id}
+          variant="secondary"
           className="w-full"
         >
           <FaCheckCircle className="inline mr-2" />
-          {updatingProduct === product.id ? 'Updating...' : 'Mark Delivered'}
+          Download QR Code
         </Button>
       );
     }
@@ -195,7 +191,7 @@ const RetailerDashboard: React.FC = () => {
             <div>
               <p className="text-gray-400 text-sm">In Transit</p>
               <p className="text-3xl font-bold">
-                {products.filter((p: any) => Number(p.status) === 4).length}
+                {products.filter((p: any) => Number(p.status) === 5).length}
               </p>
             </div>
           </div>
@@ -209,7 +205,7 @@ const RetailerDashboard: React.FC = () => {
             <div>
               <p className="text-gray-400 text-sm">Delivered</p>
               <p className="text-3xl font-bold">
-                {products.filter((p: any) => Number(p.status) === 5).length}
+                {products.filter((p: any) => Number(p.status) === 6).length}
               </p>
             </div>
           </div>
@@ -278,6 +274,50 @@ const RetailerDashboard: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Receive Product Modal */}
+      <Modal
+        isOpen={isReceiveModalOpen}
+        onClose={() => setIsReceiveModalOpen(false)}
+        title="Receive Product"
+      >
+        <form onSubmit={handleReceiveProduct} className="space-y-4">
+          <Input
+            label="Received Date"
+            type="date"
+            value={receiveData.receivedDate}
+            onChange={(e) => setReceiveData({ ...receiveData, receivedDate: e.target.value })}
+            required
+          />
+          <Input
+            label="Expiry Date"
+            type="date"
+            value={receiveData.expiryDate}
+            onChange={(e) => setReceiveData({ ...receiveData, expiryDate: e.target.value })}
+          />
+          <Input
+            label="Retail Price (smallest units)"
+            type="number"
+            value={receiveData.retailPrice}
+            onChange={(e) => setReceiveData({ ...receiveData, retailPrice: e.target.value })}
+            placeholder="e.g., 4999"
+          />
+          <div>
+            <label className="block text-sm font-medium mb-2">Retail Notes</label>
+            <textarea
+              value={receiveData.notes}
+              onChange={(e) => setReceiveData({ ...receiveData, notes: e.target.value })}
+              className="w-full px-4 py-2 bg-black/30 border border-primary-500/30 rounded-lg focus:outline-none focus:border-primary-500"
+              rows={3}
+              placeholder="Condition, shelf life, pricing notes"
+            />
+          </div>
+
+          <Button type="submit" disabled={updatingProduct === receiveData.productId} className="w-full">
+            {updatingProduct === receiveData.productId ? 'Receiving...' : 'Confirm Receipt'}
+          </Button>
+        </form>
+      </Modal>
     </div>
   );
 };

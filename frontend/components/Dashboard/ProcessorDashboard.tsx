@@ -1,31 +1,36 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { FaIndustry, FaPlus, FaThermometerHalf, FaBoxOpen, FaCheckCircle, FaTruck } from 'react-icons/fa';
+import { FaIndustry, FaPlus, FaThermometerHalf, FaBoxOpen, FaTruck } from 'react-icons/fa';
 import GlassCard from '../Layout/GlassCard';
 import Button from '../UI/Button';
 import Input from '../UI/Input';
 import Modal from '../UI/Modal';
-import { getCurrentAccount, getAllProducts, createBatch, addSensorData, updateProductStatus, acceptDelivery, completeBatchProcessing } from '../../utils/blockchain';
-import { PRODUCT_STATUS } from '../../utils/constants';
+import { getCurrentAccount, getAllProducts, getAvailableBatches, processBatch, transferCustody } from '../../utils/blockchain';
+import { uploadFileToIPFS, mockUploadToIPFS, isPinataConfigured } from '../../utils/ipfs';
 
 const ProcessorDashboard: React.FC = () => {
   const [account, setAccount] = useState<string | null>(null);
   const [products, setProducts] = useState<any[]>([]);
+  const [availableProductIds, setAvailableProductIds] = useState<number[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isSensorModalOpen, setIsSensorModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [processingProductId, setProcessingProductId] = useState<number | null>(null);
+  const [certificateFile, setCertificateFile] = useState<File | null>(null);
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [formData, setFormData] = useState({
     productId: 0,
     quantity: '',
-    packagingDetails: '',
-  });
-  const [sensorData, setSensorData] = useState({
-    batchId: 0,
+    processingLocation: '',
+    processingNotes: '',
     temperature: '',
     humidity: '',
+  });
+  const [transferData, setTransferData] = useState({
+    productId: 0,
+    retailerAddress: '',
+    notes: '',
   });
 
   useEffect(() => {
@@ -41,13 +46,16 @@ const ProcessorDashboard: React.FC = () => {
   const loadProducts = async () => {
     setLoadingProducts(true);
     try {
-      const allProducts = await getAllProducts();
-      // Filter products that are harvested (ready for processing)
-      const harvestedProducts = allProducts.filter((p: any) => Number(p.status) === 1); // Harvested status
+      const [allProducts, availableIds] = await Promise.all([
+        getAllProducts(),
+        getAvailableBatches()
+      ]);
       setProducts(allProducts);
+      setAvailableProductIds(availableIds);
     } catch (error) {
       console.error('Error loading products:', error);
       setProducts([]);
+      setAvailableProductIds([]);
     } finally {
       setLoadingProducts(false);
     }
@@ -57,40 +65,68 @@ const ProcessorDashboard: React.FC = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSensorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSensorData({ ...sensorData, [e.target.name]: e.target.value });
-  };
-
   const openBatchModal = (product: any) => {
     setSelectedProduct(product);
-    setFormData({ ...formData, productId: product.id });
+    setFormData({
+      productId: product.id,
+      quantity: '',
+      processingLocation: '',
+      processingNotes: '',
+      temperature: '',
+      humidity: ''
+    });
     setIsModalOpen(true);
   };
-
-  const openSensorModal = (batchId: number) => {
-    setSensorData({ ...sensorData, batchId });
-    setIsSensorModalOpen(true);
+  const openTransferModal = (product: any) => {
+    setTransferData({ productId: Number(product.id), retailerAddress: '', notes: '' });
+    setIsTransferModalOpen(true);
   };
 
-  const handleCreateBatch = async (e: React.FormEvent) => {
+  const handleProcessBatch = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
-      await createBatch(
+      let processingCertHash = '';
+      if (certificateFile) {
+        if (isPinataConfigured()) {
+          processingCertHash = await uploadFileToIPFS(certificateFile);
+        } else {
+          processingCertHash = await mockUploadToIPFS(certificateFile.name);
+        }
+      }
+
+      const temperature = parseInt(formData.temperature);
+      const humidity = parseInt(formData.humidity);
+      const temperatures = Number.isFinite(temperature) ? [temperature] : [];
+      const humidities = Number.isFinite(humidity) ? [humidity] : [];
+
+      await processBatch(
         formData.productId,
         parseInt(formData.quantity),
-        formData.packagingDetails
+        formData.processingLocation,
+        temperatures,
+        humidities,
+        formData.processingNotes,
+        processingCertHash
       );
 
-      alert('Batch created successfully!');
+      alert('Batch processed successfully!');
       setIsModalOpen(false);
-      setFormData({ productId: 0, quantity: '', packagingDetails: '' });
+      setFormData({
+        productId: 0,
+        quantity: '',
+        processingLocation: '',
+        processingNotes: '',
+        temperature: '',
+        humidity: ''
+      });
+      setCertificateFile(null);
       await loadProducts();
     } catch (error: any) {
-      console.error('Error creating batch:', error);
-      let errorMessage = 'Failed to create batch. ';
-      
+      console.error('Error processing batch:', error);
+      let errorMessage = 'Failed to process batch. ';
+
       if (error.code === 4001) {
         errorMessage += 'You rejected the transaction.';
       } else if (error.message?.includes('AccessControl')) {
@@ -98,90 +134,52 @@ const ProcessorDashboard: React.FC = () => {
       } else if (error.message) {
         errorMessage += error.message;
       }
-      
+
       alert(errorMessage);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleAddSensorData = async (e: React.FormEvent) => {
+  const handleTransferCustody = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
+
+    if (!account) {
+      alert('Please connect your wallet first');
+      return;
+    }
+
+    if (!transferData.retailerAddress.trim()) {
+      alert('Please enter a retailer address');
+      return;
+    }
 
     try {
-      await addSensorData(
-        sensorData.batchId,
-        parseInt(sensorData.temperature),
-        parseInt(sensorData.humidity)
+      setProcessingProductId(transferData.productId);
+      await transferCustody(
+        transferData.productId,
+        transferData.retailerAddress.trim(),
+        transferData.notes.trim() || 'Transferred to retailer'
       );
-
-      alert('Sensor data recorded successfully!');
-      setIsSensorModalOpen(false);
-      setSensorData({ batchId: 0, temperature: '', humidity: '' });
+      alert('Custody transferred to retailer!');
+      setIsTransferModalOpen(false);
+      setTransferData({ productId: 0, retailerAddress: '', notes: '' });
       await loadProducts();
     } catch (error: any) {
-      console.error('Error adding sensor data:', error);
-      alert('Failed to add sensor data: ' + (error.message || 'Unknown error'));
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleAcceptDelivery = async (product: any) => {
-    if (!account) {
-      alert('Please connect your wallet first');
-      return;
-    }
-
-    if (!confirm(`Accept delivery of ${product.name}?\n\nThis will transfer custody to you as the processor.`)) {
-      return;
-    }
-
-    try {
-      setProcessingProductId(Number(product.id));
-      await acceptDelivery(Number(product.id));
-      alert(`✅ Delivery accepted!\n\nYou are now the custodian of ${product.name}.\nYou can now create a processing batch.`);
-      await loadProducts();
-    } catch (error: any) {
-      console.error('Error accepting delivery:', error);
-      alert(`Failed to accept delivery: ${error.message || 'Unknown error'}`);
+      console.error('Error transferring custody:', error);
+      alert(`Failed to transfer custody: ${error.message || 'Unknown error'}`);
     } finally {
       setProcessingProductId(null);
     }
   };
 
-  const handleCompleteBatch = async (product: any) => {
-    if (!account) {
-      alert('Please connect your wallet first');
-      return;
-    }
+  const availableProducts = products.filter((p: any) =>
+    availableProductIds.includes(Number(p.id))
+  );
 
-    // Find the batch ID for this product
-    const batchIds = product.batchIds || [];
-    if (batchIds.length === 0) {
-      alert('No batch found for this product');
-      return;
-    }
-
-    const batchId = Number(batchIds[batchIds.length - 1]); // Get the most recent batch
-
-    if (!confirm(`Mark processing complete for ${product.name}?\n\nBatch ID: ${batchId}\n\nThis will mark the product as Processed and ready for retailer.`)) {
-      return;
-    }
-
-    try {
-      setProcessingProductId(Number(product.id));
-      await completeBatchProcessing(batchId);
-      alert(`✅ Processing complete!\n\nProduct: ${product.name}\nBatch: ${batchId}\n\nThe product is now ready for retailer.`);
-      await loadProducts();
-    } catch (error: any) {
-      console.error('Error completing batch:', error);
-      alert(`Failed to complete processing: ${error.message || 'Unknown error'}`);
-    } finally {
-      setProcessingProductId(null);
-    }
-  };
+  const processedProducts = products.filter(
+    (p: any) => Number(p.status) === 3 && p.currentCustodian?.toLowerCase() === account?.toLowerCase()
+  );
 
   return (
     <div className="space-y-6">
@@ -234,7 +232,7 @@ const ProcessorDashboard: React.FC = () => {
             <div>
               <p className="text-gray-400 text-sm">Ready to Process</p>
               <p className="text-3xl font-bold">
-                {products.filter((p: any) => Number(p.status) === 1).length}
+                {availableProducts.length}
               </p>
             </div>
           </div>
@@ -256,101 +254,117 @@ const ProcessorDashboard: React.FC = () => {
       </div>
 
       {/* Products List */}
-      <div>
-        <h2 className="text-2xl font-bold mb-4">Products Available for Processing</h2>
-        {loadingProducts ? (
-          <GlassCard>
-            <div className="text-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-400 mx-auto mb-4"></div>
-              <p className="text-gray-400">Loading products...</p>
+      <div className="space-y-8">
+        <div>
+          <h2 className="text-2xl font-bold mb-4">Products Available for Processing</h2>
+          {loadingProducts ? (
+            <GlassCard>
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-400 mx-auto mb-4"></div>
+                <p className="text-gray-400">Loading products...</p>
+              </div>
+            </GlassCard>
+          ) : availableProducts.length === 0 ? (
+            <GlassCard>
+              <div className="text-center py-12">
+                <FaIndustry className="text-6xl text-gray-600 mx-auto mb-4" />
+                <p className="text-gray-400 mb-4">No harvested products available</p>
+              </div>
+            </GlassCard>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {availableProducts.map((product: any) => (
+                <GlassCard key={product.id}>
+                  <div className="flex justify-between items-start mb-3">
+                    <h3 className="text-xl font-bold">{product.name}</h3>
+                    <span className="status-badge status-harvested">Harvested</span>
+                  </div>
+                  
+                  <div className="space-y-2 text-sm mb-4">
+                    <p>
+                      <span className="text-gray-400">Product ID:</span>{' '}
+                      <span className="font-mono">#{product.id}</span>
+                    </p>
+                    <p>
+                      <span className="text-gray-400">Farmer:</span>{' '}
+                      <span className="font-mono text-xs">{product.farmer?.slice(0, 6)}...{product.farmer?.slice(-4)}</span>
+                    </p>
+                    <p>
+                      <span className="text-gray-400">Score:</span>{' '}
+                      <span className="text-yellow-400">{Number(product.authenticityScore)}/100</span>
+                    </p>
+                  </div>
+
+                  <Button 
+                    onClick={() => openBatchModal(product)}
+                    disabled={!account}
+                    variant="primary"
+                    className="w-full"
+                  >
+                    <FaPlus className="inline mr-2" />
+                    Process Batch
+                  </Button>
+                </GlassCard>
+              ))}
             </div>
-          </GlassCard>
-        ) : products.length === 0 ? (
-          <GlassCard>
-            <div className="text-center py-12">
-              <FaIndustry className="text-6xl text-gray-600 mx-auto mb-4" />
-              <p className="text-gray-400 mb-4">No products available for processing</p>
+          )}
+        </div>
+
+        <div>
+          <h2 className="text-2xl font-bold mb-4">Processed Batches Ready to Transfer</h2>
+          {loadingProducts ? (
+            <GlassCard>
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-400 mx-auto mb-4"></div>
+                <p className="text-gray-400">Loading products...</p>
+              </div>
+            </GlassCard>
+          ) : processedProducts.length === 0 ? (
+            <GlassCard>
+              <div className="text-center py-12">
+                <FaTruck className="text-6xl text-gray-600 mx-auto mb-4" />
+                <p className="text-gray-400 mb-4">No processed products ready to ship</p>
+              </div>
+            </GlassCard>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {processedProducts.map((product: any) => (
+                <GlassCard key={`transfer-${product.id}`}>
+                  <div className="flex justify-between items-start mb-3">
+                    <h3 className="text-xl font-bold">{product.name}</h3>
+                    <span className="status-badge status-processed">Processed</span>
+                  </div>
+
+                  <div className="space-y-2 text-sm mb-4">
+                    <p>
+                      <span className="text-gray-400">Product ID:</span>{' '}
+                      <span className="font-mono">#{product.id}</span>
+                    </p>
+                    <p>
+                      <span className="text-gray-400">Custodian:</span>{' '}
+                      <span className="font-mono text-xs">{product.currentCustodian?.slice(0, 6)}...{product.currentCustodian?.slice(-4)}</span>
+                    </p>
+                  </div>
+
+                  <Button
+                    onClick={() => openTransferModal(product)}
+                    disabled={!account || processingProductId === Number(product.id)}
+                    variant="primary"
+                    className="w-full bg-blue-600 hover:bg-blue-700 border-blue-500"
+                  >
+                    <FaTruck className="inline mr-2" />
+                    Transfer to Retailer
+                  </Button>
+                </GlassCard>
+              ))}
             </div>
-          </GlassCard>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {products.map((product: any) => (
-              <GlassCard key={product.id}>
-                <div className="flex justify-between items-start mb-3">
-                  <h3 className="text-xl font-bold">{product.name}</h3>
-                  <span className={`status-badge status-${(PRODUCT_STATUS[Number(product.status)] || 'Unknown').toLowerCase().replace(' ', '-')}`}>
-                    {PRODUCT_STATUS[Number(product.status)] || 'Unknown'}
-                  </span>
-                </div>
-                
-                <div className="space-y-2 text-sm mb-4">
-                  <p>
-                    <span className="text-gray-400">Product ID:</span>{' '}
-                    <span className="font-mono">#{product.id}</span>
-                  </p>
-                  <p>
-                    <span className="text-gray-400">Farmer:</span>{' '}
-                    <span className="font-mono text-xs">{product.farmer?.slice(0, 6)}...{product.farmer?.slice(-4)}</span>
-                  </p>
-                  <p>
-                    <span className="text-gray-400">Score:</span>{' '}
-                    <span className="text-yellow-400">{Number(product.authenticityScore)}/100</span>
-                  </p>
-                  <p>
-                    <span className="text-gray-400">Custodian:</span>{' '}
-                    <span className="font-mono text-xs">{product.currentCustodian?.slice(0, 6)}...{product.currentCustodian?.slice(-4)}</span>
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  {/* Accept Delivery - For Harvested products not yet in processor's custody */}
-                  {Number(product.status) === 1 && product.currentCustodian?.toLowerCase() !== account?.toLowerCase() && (
-                    <Button 
-                      onClick={() => handleAcceptDelivery(product)}
-                      disabled={!account || processingProductId === Number(product.id)}
-                      variant="primary"
-                      className="w-full bg-blue-600 hover:bg-blue-700 border-blue-500"
-                    >
-                      <FaTruck className="inline mr-2" />
-                      {processingProductId === Number(product.id) ? 'Accepting...' : '📦 Accept Delivery'}
-                    </Button>
-                  )}
-
-                  {/* Create Batch - For Harvested products in processor's custody */}
-                  {Number(product.status) === 1 && product.currentCustodian?.toLowerCase() === account?.toLowerCase() && (
-                    <Button 
-                      onClick={() => openBatchModal(product)}
-                      disabled={!account}
-                      variant="primary"
-                      className="w-full"
-                    >
-                      <FaPlus className="inline mr-2" />
-                      Create Batch
-                    </Button>
-                  )}
-
-                  {/* Complete Processing - For products currently being processed */}
-                  {Number(product.status) === 2 && (
-                    <Button 
-                      onClick={() => handleCompleteBatch(product)}
-                      disabled={!account || processingProductId === Number(product.id)}
-                      variant="primary"
-                      className="w-full bg-green-600 hover:bg-green-700 border-green-500"
-                    >
-                      <FaCheckCircle className="inline mr-2" />
-                      {processingProductId === Number(product.id) ? 'Completing...' : '✅ Complete Processing'}
-                    </Button>
-                  )}
-                </div>
-              </GlassCard>
-            ))}
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      {/* Create Batch Modal */}
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Create Processing Batch">
-        <form onSubmit={handleCreateBatch} className="space-y-4">
+      {/* Process Batch Modal */}
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Process Batch">
+        <form onSubmit={handleProcessBatch} className="space-y-4">
           <div>
             <label className="block text-sm font-medium mb-2">Product</label>
             <p className="text-primary-400 font-bold text-lg">{selectedProduct?.name}</p>
@@ -368,21 +382,90 @@ const ProcessorDashboard: React.FC = () => {
             placeholder="Enter quantity in kg"
           />
 
+          <Input
+            label="Processing Location"
+            name="processingLocation"
+            type="text"
+            value={formData.processingLocation}
+            onChange={handleInputChange}
+            required
+            placeholder="e.g., Central Processing Facility"
+          />
+
           <div>
-            <label className="block text-sm font-medium mb-2">Packaging Details</label>
+            <label className="block text-sm font-medium mb-2">Processing Notes</label>
             <textarea
-              name="packagingDetails"
-              value={formData.packagingDetails}
+              name="processingNotes"
+              value={formData.processingNotes}
               onChange={handleInputChange}
               className="w-full px-4 py-2 bg-black/30 border border-primary-500/30 rounded-lg focus:outline-none focus:border-primary-500"
               rows={3}
-              required
-              placeholder="e.g., Vacuum sealed in 500g packs"
+              placeholder="e.g., Washed, sorted, packed"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              label="Temperature (C x 100)"
+              name="temperature"
+              type="number"
+              value={formData.temperature}
+              onChange={handleInputChange}
+              placeholder="e.g., 2500 for 25.00C"
+            />
+            <Input
+              label="Humidity (% x 100)"
+              name="humidity"
+              type="number"
+              value={formData.humidity}
+              onChange={handleInputChange}
+              placeholder="e.g., 6500 for 65.00%"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">Processing Certificate (optional)</label>
+            <input
+              type="file"
+              accept=".pdf,image/*"
+              className="w-full px-4 py-2 bg-dark-200 border border-dark-300 rounded-lg text-white focus:outline-none focus:border-primary-400"
+              onChange={(e) => setCertificateFile(e.target.files?.[0] || null)}
             />
           </div>
 
           <Button type="submit" disabled={isLoading} className="w-full">
-            {isLoading ? 'Creating...' : 'Create Batch'}
+            {isLoading ? 'Processing...' : 'Process Batch'}
+          </Button>
+        </form>
+      </Modal>
+
+      {/* Transfer Custody Modal */}
+      <Modal isOpen={isTransferModalOpen} onClose={() => setIsTransferModalOpen(false)} title="Transfer to Retailer">
+        <form onSubmit={handleTransferCustody} className="space-y-4">
+          <Input
+            label="Retailer Address"
+            name="retailerAddress"
+            type="text"
+            value={transferData.retailerAddress}
+            onChange={(e) => setTransferData({ ...transferData, retailerAddress: e.target.value })}
+            required
+            placeholder="0x..."
+          />
+
+          <div>
+            <label className="block text-sm font-medium mb-2">Transfer Notes</label>
+            <textarea
+              name="notes"
+              value={transferData.notes}
+              onChange={(e) => setTransferData({ ...transferData, notes: e.target.value })}
+              className="w-full px-4 py-2 bg-black/30 border border-primary-500/30 rounded-lg focus:outline-none focus:border-primary-500"
+              rows={3}
+              placeholder="Shipment details, carrier, etc."
+            />
+          </div>
+
+          <Button type="submit" disabled={isLoading} className="w-full">
+            {isLoading ? 'Transferring...' : 'Transfer Custody'}
           </Button>
         </form>
       </Modal>

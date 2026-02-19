@@ -1,33 +1,68 @@
-import QRCode from 'qrcode';
-
 /**
- * Generate QR code data URL for a product
+ * Generate QR code data URL for a product via API
  * @param productId Product ID
- * @param contractAddress Contract address (optional)
  * @returns Data URL of the QR code image
  */
 export const generateProductQRCode = async (
-  productId: number,
-  contractAddress?: string
+  productId: number
 ): Promise<string> => {
   try {
-    // Create the verification URL
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
-    const verificationUrl = `${baseUrl}/consumer/${productId}`;
     
-    // Generate QR code as data URL
-    const qrDataUrl = await QRCode.toDataURL(verificationUrl, {
-      width: 400,
-      margin: 2,
-      color: {
-        dark: '#000000',
-        light: '#FFFFFF'
-      }
+    console.log('[QRCode] Starting QR generation for product:', productId);
+    console.log('[QRCode] Base URL:', baseUrl);
+    console.log('[QRCode] Calling /api/generateQR...');
+    
+    const response = await fetch('/api/generateQR', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        productId,
+        baseUrl,
+      }),
     });
+
+    console.log('[QRCode] API Response Status:', response.status, response.statusText);
+    console.log('[QRCode] Response Headers:', response.headers.get('content-type'));
+
+    if (!response.ok) {
+      const contentType = response.headers.get('content-type');
+      let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+      
+      try {
+        // Only try to parse as JSON if the content type is JSON
+        if (contentType && contentType.includes('application/json')) {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+          console.log('[QRCode] API Error details:', errorData);
+        } else {
+          console.warn('[QRCode] Response is not JSON, type:', contentType);
+          const textContent = await response.text();
+          if (textContent) {
+            console.log('[QRCode] Response text (first 200 chars):', textContent.substring(0, 200));
+          }
+        }
+      } catch (parseError) {
+        // If parsing fails, just use the status text
+        console.warn('[QRCode] Could not parse error response:', parseError);
+      }
+      
+      throw new Error(`Failed to generate QR code: ${errorMessage}`);
+    }
+
+    const data = await response.json();
+    console.log('[QRCode] API Response received, has qrCodeDataUrl:', !!data.qrCodeDataUrl);
     
-    return qrDataUrl;
+    if (!data.qrCodeDataUrl) {
+      throw new Error('No QR code data URL received from API');
+    }
+    
+    console.log('[QRCode] QR code generated successfully');
+    return data.qrCodeDataUrl;
   } catch (error) {
-    console.error('Error generating QR code:', error);
+    console.error('[QRCode] Error generating QR code:', error);
     throw error;
   }
 };
@@ -42,15 +77,67 @@ export const downloadProductQRCode = async (
   productName: string
 ): Promise<void> => {
   try {
-    const qrDataUrl = await generateProductQRCode(productId);
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
     
-    // Create download link
+    // Use API to get base64 encoded QR code
+    const response = await fetch('/api/generateQR', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        productId,
+        baseUrl,
+      }),
+    });
+
+    if (!response.ok) {
+      const contentType = response.headers.get('content-type');
+      let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+      
+      try {
+        // Only try to parse as JSON if the content type is JSON
+        if (contentType && contentType.includes('application/json')) {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        }
+      } catch (parseError) {
+        // If parsing fails, just use the status text
+        console.warn('Could not parse error response:', parseError);
+      }
+      
+      throw new Error(`Failed to generate QR code: ${errorMessage}`);
+    }
+
+    const data = await response.json();
+    
+    if (!data.qrCodeBase64) {
+      throw new Error('No QR code data received from API');
+    }
+
+    // Convert base64 to blob
+    const byteCharacters = atob(data.qrCodeBase64);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: 'image/png' });
+
+    // Create blob URL and download
+    const blobUrl = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.href = qrDataUrl;
+    link.href = blobUrl;
     link.download = `${productName.replace(/\s+/g, '-')}-product-${productId}.png`;
+    
     document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
+    
+    // Cleanup
+    setTimeout(() => {
+      document.body.removeChild(link);
+      URL.revokeObjectURL(blobUrl);
+    }, 100);
   } catch (error) {
     console.error('Error downloading QR code:', error);
     throw error;

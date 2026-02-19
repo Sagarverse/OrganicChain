@@ -1,5 +1,5 @@
 import { ethers, BrowserProvider, Contract } from 'ethers';
-import { CONTRACT_ADDRESS } from './constants';
+import { CONTRACT_ADDRESS, CROP_TYPES } from './constants';
 import ContractArtifact from '../contracts/OrganicSupplyChain.json';
 
 const CONTRACT_ABI = ContractArtifact.abi;
@@ -7,8 +7,43 @@ const CONTRACT_ABI = ContractArtifact.abi;
 declare global {
   interface Window {
     ethereum?: any;
+    __contractMocks?: Record<string, any>;
   }
 }
+
+const getMock = (method: string) => {
+  if (typeof window === 'undefined') return undefined;
+  if (window.__contractMocks?.[method] !== undefined) {
+    return window.__contractMocks[method];
+  }
+  const cypress = (window as any).Cypress;
+  if (cypress?.env) {
+    const envMocks = cypress.env('contractMocks');
+    if (envMocks?.[method] !== undefined) {
+      return envMocks[method];
+    }
+  }
+  try {
+    const stored = window.localStorage?.getItem('contractMocks');
+    if (stored) {
+      const parsed = JSON.parse(stored) as Record<string, any>;
+      return parsed?.[method];
+    }
+  } catch (error) {
+    console.warn('Failed to read contract mocks from storage', error);
+  }
+  return undefined;
+};
+
+export const hasContractMock = (method: string) => getMock(method) !== undefined;
+
+export const getContractMock = (method: string) => getMock(method);
+
+const ensureNoMockError = (mock: any) => {
+  if (mock && typeof mock === 'object' && 'error' in mock) {
+    throw new Error(mock.error);
+  }
+};
 
 /**
  * Get the Ethereum provider from MetaMask
@@ -26,7 +61,7 @@ export const getProvider = (): BrowserProvider | null => {
 export const getSigner = async (): Promise<ethers.JsonRpcSigner | null> => {
   const provider = getProvider();
   if (!provider) return null;
-  
+
   try {
     const signer = await provider.getSigner();
     return signer;
@@ -45,11 +80,11 @@ export const getContract = async (withSigner = false): Promise<Contract | null> 
       const signer = await getSigner();
       if (!signer) return null;
       return new Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
-    } else {
-      const provider = getProvider();
-      if (!provider) return null;
-      return new Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
     }
+
+    const provider = getProvider();
+    if (!provider) return null;
+    return new Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
   } catch (error) {
     console.error('Error getting contract:', error);
     return null;
@@ -100,8 +135,15 @@ export const registerProduct = async (
   certHash: string,
   latitude: string,
   longitude: string,
-  plantedDate: number
+  plantedDate: number,
+  expectedHarvestDate: number
 ) => {
+  const mock = getMock('registerProduct');
+  if (mock !== undefined) {
+    ensureNoMockError(mock);
+    return mock;
+  }
+
   const contract = await getContract(true);
   if (!contract) throw new Error('Contract not available');
 
@@ -111,9 +153,10 @@ export const registerProduct = async (
     certHash,
     latitude,
     longitude,
-    plantedDate
+    plantedDate,
+    expectedHarvestDate
   );
-  
+
   const receipt = await tx.wait();
   return receipt;
 };
@@ -125,6 +168,12 @@ export const updateProductStatus = async (
   productId: number,
   status: number
 ) => {
+  const mock = getMock('updateProductStatus');
+  if (mock !== undefined) {
+    ensureNoMockError(mock);
+    return mock;
+  }
+
   const contract = await getContract(true);
   if (!contract) throw new Error('Contract not available');
 
@@ -138,12 +187,19 @@ export const updateProductStatus = async (
  */
 export const harvestProduct = async (
   productId: number,
-  estimatedQuantity: number
+  estimatedQuantity: number,
+  notes: string
 ) => {
+  const mock = getMock('harvestProduct');
+  if (mock !== undefined) {
+    ensureNoMockError(mock);
+    return mock;
+  }
+
   const contract = await getContract(true);
   if (!contract) throw new Error('Contract not available');
 
-  const tx = await contract.harvestProduct(productId, estimatedQuantity);
+  const tx = await contract.harvestProduct(productId, estimatedQuantity, notes);
   const receipt = await tx.wait();
   return receipt;
 };
@@ -151,9 +207,7 @@ export const harvestProduct = async (
 /**
  * Accept delivery (Processor/Retailer)
  */
-export const acceptDelivery = async (
-  productId: number
-) => {
+export const acceptDelivery = async (productId: number) => {
   const contract = await getContract(true);
   if (!contract) throw new Error('Contract not available');
 
@@ -163,11 +217,65 @@ export const acceptDelivery = async (
 };
 
 /**
+ * Transfer custody (Product)
+ */
+export const transferCustody = async (
+  productId: number,
+  newCustodian: string,
+  notes: string
+) => {
+  const mock = getMock('transferCustody');
+  if (mock !== undefined) {
+    ensureNoMockError(mock);
+    return mock;
+  }
+
+  const contract = await getContract(true);
+  if (!contract) throw new Error('Contract not available');
+
+  const tx = await contract['transferCustody(uint256,address,string)'](
+    productId,
+    newCustodian,
+    notes
+  );
+  const receipt = await tx.wait();
+  return receipt;
+};
+
+/**
+ * Receive product at retail
+ */
+export const receiveProduct = async (
+  productId: number,
+  receivedDate: number,
+  expiryDate: number,
+  retailPrice: number,
+  notes: string
+) => {
+  const mock = getMock('receiveProduct');
+  if (mock !== undefined) {
+    ensureNoMockError(mock);
+    return mock;
+  }
+
+  const contract = await getContract(true);
+  if (!contract) throw new Error('Contract not available');
+
+  const tx = await contract.receiveProduct(
+    productId,
+    receivedDate,
+    expiryDate,
+    retailPrice,
+    notes
+  );
+  const receipt = await tx.wait();
+  return receipt;
+};
+
+/**
  * Complete batch processing (Processor)
  */
-export const completeBatchProcessing = async (
-  batchId: number
-) => {
+export const completeBatchProcessing = async (batchId: number) => {
   const contract = await getContract(true);
   if (!contract) throw new Error('Contract not available');
 
@@ -177,11 +285,43 @@ export const completeBatchProcessing = async (
 };
 
 /**
+ * Process a batch (Processor)
+ */
+export const processBatch = async (
+  productId: number,
+  quantity: number,
+  processingLocation: string,
+  temperatures: number[],
+  humidities: number[],
+  processingNotes: string,
+  processingCertHash: string
+) => {
+  const mock = getMock('processBatch');
+  if (mock !== undefined) {
+    ensureNoMockError(mock);
+    return mock;
+  }
+
+  const contract = await getContract(true);
+  if (!contract) throw new Error('Contract not available');
+
+  const tx = await contract.processBatch(
+    productId,
+    quantity,
+    processingLocation,
+    temperatures,
+    humidities,
+    processingNotes,
+    processingCertHash
+  );
+  const receipt = await tx.wait();
+  return receipt;
+};
+
+/**
  * Approve a certificate (Inspector)
  */
-export const approveCertificate = async (
-  certificateId: number
-) => {
+export const approveCertificate = async (certificateId: number) => {
   const contract = await getContract(true);
   if (!contract) throw new Error('Contract not available');
 
@@ -193,10 +333,7 @@ export const approveCertificate = async (
 /**
  * Reject a certificate (Inspector)
  */
-export const rejectCertificate = async (
-  certificateId: number,
-  reason: string
-) => {
+export const rejectCertificate = async (certificateId: number, reason: string) => {
   const contract = await getContract(true);
   if (!contract) throw new Error('Contract not available');
 
@@ -226,8 +363,8 @@ export const createBatch = async (
  */
 export const addSensorData = async (
   batchId: number,
-  temperature: number, // in celsius * 100
-  humidity: number // in percentage * 100
+  temperature: number,
+  humidity: number
 ) => {
   const contract = await getContract(true);
   if (!contract) throw new Error('Contract not available');
@@ -254,24 +391,14 @@ export const updateBatchLocation = async (
 };
 
 /**
- * Transfer custody
- */
-export const transferCustody = async (
-  batchId: number,
-  newCustodian: string
-) => {
-  const contract = await getContract(true);
-  if (!contract) throw new Error('Contract not available');
-
-  const tx = await contract.transferCustody(batchId, newCustodian);
-  const receipt = await tx.wait();
-  return receipt;
-};
-
-/**
  * Get product history
  */
 export const getProductHistory = async (productId: number) => {
+  const mock = getMock('getProductHistory');
+  if (mock !== undefined) {
+    return mock;
+  }
+
   const contract = await getContract(false);
   if (!contract) throw new Error('Contract not available');
 
@@ -280,9 +407,30 @@ export const getProductHistory = async (productId: number) => {
 };
 
 /**
+ * Get available products for processing
+ */
+export const getAvailableBatches = async () => {
+  const mock = getMock('getAvailableBatches');
+  if (mock !== undefined) {
+    return mock;
+  }
+
+  const contract = await getContract(false);
+  if (!contract) throw new Error('Contract not available');
+
+  const productIds = await contract.getAvailableBatches();
+  return productIds.map((id: bigint) => Number(id));
+};
+
+/**
  * Verify product
  */
 export const verifyProduct = async (productId: number) => {
+  const mock = getMock('verifyProduct');
+  if (mock !== undefined) {
+    return mock;
+  }
+
   const contract = await getContract(false);
   if (!contract) throw new Error('Contract not available');
 
@@ -291,9 +439,40 @@ export const verifyProduct = async (productId: number) => {
 };
 
 /**
+ * Get certificate details
+ */
+export const getCertificate = async (certificateId: number) => {
+  const mock = getMock('getCertificate');
+  if (mock !== undefined) {
+    return mock;
+  }
+
+  const contract = await getContract(false);
+  if (!contract) throw new Error('Contract not available');
+
+  const cert = await contract.getCertificate(certificateId);
+  return {
+    certId: Number(cert.certId),
+    issuer: cert.issuer,
+    issueDate: Number(cert.issueDate),
+    validUntil: Number(cert.validUntil),
+    documentHash: cert.documentHash,
+    approved: cert.approved,
+    rejected: cert.rejected,
+    approvedBy: cert.approvedBy,
+    rejectionReason: cert.rejectionReason || ''
+  };
+};
+
+/**
  * Get farmer's products
  */
 export const getFarmerProducts = async (farmerAddress: string) => {
+  const mock = getMock('getFarmerProducts');
+  if (mock !== undefined) {
+    return mock;
+  }
+
   const contract = await getContract(false);
   if (!contract) throw new Error('Contract not available');
 
@@ -316,22 +495,36 @@ export const getTotalProducts = async () => {
  * Get all products (for display purposes)
  */
 export const getAllProducts = async () => {
+  const mockAll = getMock('getAllProducts');
+  if (mockAll !== undefined) {
+    return mockAll;
+  }
+
+  const mockFarmer = getMock('getFarmerProducts');
+  if (Array.isArray(mockFarmer) && mockFarmer.length > 0 && mockFarmer[0]?.name) {
+    return mockFarmer;
+  }
+
   const contract = await getContract(false);
   if (!contract) throw new Error('Contract not available');
 
   const totalCount = await contract.getTotalProducts();
   const count = Number(totalCount);
-  
-  const products = [];
+
+  const products = [] as any[];
   for (let i = 1; i <= count; i++) {
     try {
       const { product } = await getProductHistory(i);
-      products.push({ ...product, id: i });
+      products.push({
+        ...product,
+        id: i,
+        category: CROP_TYPES[Number(product.cropType)] || 'Unknown'
+      });
     } catch (error) {
       console.error(`Error loading product ${i}:`, error);
     }
   }
-  
+
   return products;
 };
 
@@ -344,17 +537,15 @@ export const getAllBatches = async () => {
 
   const totalCount = await contract.getTotalBatches();
   const count = Number(totalCount);
-  
-  const batches = [];
+
+  const batches = [] as any[];
   for (let i = 1; i <= count; i++) {
     try {
       const batch = await contract.batches(i);
-      
-      // Get location history length
+
       const locationHistoryLength = Number(batch.locationHistory?.length || 0);
-      const locationHistory = [];
-      
-      // Fetch each location in history
+      const locationHistory = [] as any[];
+
       for (let j = 0; j < locationHistoryLength; j++) {
         try {
           const location = batch.locationHistory[j];
@@ -367,22 +558,24 @@ export const getAllBatches = async () => {
           console.error(`Error loading location ${j} for batch ${i}:`, err);
         }
       }
-      
+
       batches.push({
         id: i,
         productId: Number(batch.productId),
         processor: batch.processor,
         quantity: Number(batch.quantity),
-        processingDate: Number(batch.processingDate),
-        expiryDate: Number(batch.expiryDate),
-        completed: batch.completed,
+        processingDate: Number(batch.processedDate),
+        status: Number(batch.status),
+        processingLocation: batch.processingLocation,
+        processingNotes: batch.processingNotes,
+        processingCertHash: batch.processingCertHash,
         locationHistory
       });
     } catch (error) {
       console.error(`Error loading batch ${i}:`, error);
     }
   }
-  
+
   return batches;
 };
 
@@ -411,7 +604,7 @@ export const getPendingCertificates = async () => {
   if (!contract) throw new Error('Contract not available');
 
   const pendingIds = await contract.getPendingCertificates();
-  const certificates = [];
+  const certificates = [] as any[];
 
   for (const certId of pendingIds) {
     try {
@@ -436,27 +629,6 @@ export const getPendingCertificates = async () => {
 };
 
 /**
- * Get certificate details
- */
-export const getCertificate = async (certificateId: number) => {
-  const contract = await getContract(false);
-  if (!contract) throw new Error('Contract not available');
-
-  const cert = await contract.getCertificate(certificateId);
-  return {
-    certId: Number(cert.certId),
-    issuer: cert.issuer,
-    issueDate: Number(cert.issueDate),
-    validUntil: Number(cert.validUntil),
-    documentHash: cert.documentHash,
-    approved: cert.approved,
-    rejected: cert.rejected,
-    approvedBy: cert.approvedBy,
-    rejectionReason: cert.rejectionReason || ''
-  };
-};
-
-/**
  * Format address for display
  */
 export const formatAddress = (address: string): string => {
@@ -469,10 +641,11 @@ export const formatAddress = (address: string): string => {
  */
 export const formatDate = (timestamp: number): string => {
   if (!timestamp) return 'N/A';
-  const date = new Date(timestamp * 1000);
-  return date.toLocaleDateString('en-US', { 
-    year: 'numeric', 
-    month: 'short', 
+  const normalized = timestamp > 1000000000000 ? Math.floor(timestamp / 1000) : timestamp;
+  const date = new Date(normalized * 1000);
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit'
@@ -486,7 +659,6 @@ export const calculateCarbonFootprint = (
   distanceKm: number,
   storageDays: number
 ): number => {
-  // Simple calculation: transport (0.2 kg CO2/km) + storage (0.1 kg CO2/day)
   const transportEmissions = distanceKm * 0.2;
   const storageEmissions = storageDays * 0.1;
   return Math.round((transportEmissions + storageEmissions) * 100) / 100;
@@ -501,7 +673,7 @@ export const calculateDistance = (
   lat2: number,
   lon2: number
 ): number => {
-  const R = 6371; // Earth's radius in km
+  const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
   const a =
@@ -568,15 +740,13 @@ export const checkRole = async (address: string, roleName: string) => {
 
   try {
     let roleHash;
-    
-    // DEFAULT_ADMIN_ROLE is 0x00...00 (bytes32(0)), not a keccak256 hash
+
     if (roleName === 'DEFAULT_ADMIN_ROLE' || roleName === 'ADMIN') {
       roleHash = '0x0000000000000000000000000000000000000000000000000000000000000000';
     } else {
-      // Other roles are keccak256 hashes of their names
       roleHash = ethers.keccak256(ethers.toUtf8Bytes(roleName));
     }
-    
+
     const hasRole = await contract.hasRole(roleHash, address);
     return hasRole;
   } catch (error) {
@@ -632,6 +802,23 @@ export const recallProduct = async (productId: number, reason: string) => {
     return tx;
   } catch (error) {
     console.error('Error recalling product:', error);
+    throw error;
+  }
+};
+
+/**
+ * Flag tamper (admin/inspector demo)
+ */
+export const flagTamper = async (productId: number, reason: string) => {
+  const contract = await getContract(true);
+  if (!contract) throw new Error('Contract not available');
+
+  try {
+    const tx = await contract.flagTamper(productId, reason);
+    await tx.wait();
+    return tx;
+  } catch (error) {
+    console.error('Error flagging tamper:', error);
     throw error;
   }
 };

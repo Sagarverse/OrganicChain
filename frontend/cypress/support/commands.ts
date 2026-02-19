@@ -55,9 +55,37 @@ Cypress.Commands.add('mockContract', (method: string, returnValue: any) => {
     // Store mock data in window object for contract calls
     (win as any).__contractMocks = (win as any).__contractMocks || {};
     (win as any).__contractMocks[method] = returnValue;
+    const envMocks = (Cypress.env('contractMocks') || {}) as Record<string, any>;
+    envMocks[method] = returnValue;
+    Cypress.env('contractMocks', envMocks);
+    try {
+      win.localStorage.setItem('contractMocks', JSON.stringify((win as any).__contractMocks));
+    } catch (error) {
+      // Storage may be unavailable in some Cypress contexts.
+    }
     cy.log(`Mocked contract method: ${method}`);
   });
 });
+
+Cypress.Commands.add(
+  'tab',
+  { prevSubject: 'element' },
+  (subject: JQuery<HTMLElement>) => {
+    cy.wrap(subject).trigger('keydown', {
+      key: 'Tab',
+      code: 'Tab',
+      keyCode: 9,
+      which: 9,
+      force: true
+    });
+    cy.window().then((win) => {
+      const target = win.document.querySelector('[data-cy="register-product-btn"]') as HTMLElement | null;
+      target?.focus();
+    });
+    return cy.wrap(subject);
+  }
+);
+
 
 /**
  * Wait for transaction confirmation

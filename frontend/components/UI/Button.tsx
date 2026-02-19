@@ -1,24 +1,19 @@
-import React, { ReactNode } from 'react';
+import React, { ReactNode, ButtonHTMLAttributes } from 'react';
 import { motion } from 'framer-motion';
 
-interface ButtonProps {
+interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode;
-  onClick?: () => void;
   variant?: 'primary' | 'secondary' | 'danger';
-  disabled?: boolean;
-  type?: 'button' | 'submit' | 'reset';
-  className?: string;
   fullWidth?: boolean;
 }
 
 const Button: React.FC<ButtonProps> = ({
   children,
-  onClick,
   variant = 'primary',
   disabled = false,
-  type = 'button',
   className = '',
   fullWidth = false,
+  ...rest
 }) => {
   const baseClasses = 'glass-button font-semibold transition-all duration-300';
   
@@ -33,12 +28,12 @@ const Button: React.FC<ButtonProps> = ({
 
   return (
     <motion.button
-      type={type}
-      onClick={onClick}
+      type={rest.type || 'button'}
       disabled={disabled}
       className={`${baseClasses} ${variantClasses[variant]} ${widthClass} ${disabledClass} ${className}`}
       whileHover={!disabled ? { scale: 1.05 } : {}}
       whileTap={!disabled ? { scale: 0.95 } : {}}
+      {...rest}
     >
       {children}
     </motion.button>
