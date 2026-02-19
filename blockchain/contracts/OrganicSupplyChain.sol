@@ -140,11 +140,31 @@ contract OrganicSupplyChain is
         uint256 timestamp
     );
 
+    event ProductHarvested(
+        uint256 indexed productId,
+        uint256 harvestDate,
+        uint256 quantity,
+        address indexed farmer
+    );
+
+    event DeliveryAccepted(
+        uint256 indexed productId,
+        address indexed from,
+        address indexed to,
+        uint256 timestamp
+    );
+
     event BatchCreated(
         uint256 indexed batchId,
         uint256 indexed productId,
         address indexed processor,
         uint256 quantity
+    );
+
+    event BatchCompleted(
+        uint256 indexed batchId,
+        uint256 indexed productId,
+        uint256 timestamp
     );
 
     event CustodyTransferred(
@@ -328,6 +348,58 @@ contract OrganicSupplyChain is
         emit ProductStatusUpdated(productId, oldStatus, newStatus, block.timestamp);
     }
 
+    /**
+     * @notice Mark product as harvested (Farmer only)
+     * @param productId Product ID
+     * @param estimatedQuantity Estimated harvest quantity in kg
+     */
+    function harvestProduct(
+        uint256 productId,
+        uint256 estimatedQuantity
+    ) external productExists(productId) whenNotPaused {
+        Product storage product = products[productId];
+        
+        // Only farmer can harvest their own product
+        if (msg.sender != product.farmer) {
+            revert UnauthorizedAccess();
+        }
+        
+        // Must be in Planted status
+        if (product.status != ProductStatus.Planted) {
+            revert InvalidOperation();
+        }
+        
+        ProductStatus oldStatus = product.status;
+        product.status = ProductStatus.Harvested;
+        product.harvestDate = block.timestamp;
+
+        productUpdates[productId]++;
+        _updateAuthenticityScore(productId);
+
+        emit ProductHarvested(productId, block.timestamp, estimatedQuantity, msg.sender);
+        emit ProductStatusUpdated(productId, oldStatus, ProductStatus.Harvested, block.timestamp);
+    }
+
+    /**
+     * @notice Accept delivery of a product (Processor/Retailer)
+     * @param productId Product ID
+     */
+    function acceptDelivery(
+        uint256 productId
+    ) external productExists(productId) whenNotPaused {
+        Product storage product = products[productId];
+        
+        // Must have processor or retailer role
+        if (!hasRole(PROCESSOR_ROLE, msg.sender) && !hasRole(RETAILER_ROLE, msg.sender)) {
+            revert UnauthorizedAccess();
+        }
+        
+        address previousCustodian = product.currentCustodian;
+        product.currentCustodian = msg.sender;
+
+        emit DeliveryAccepted(productId, previousCustodian, msg.sender, block.timestamp);
+    }
+
     // ============ Batch Management ============
     /**
      * @notice Create a new batch for processing
@@ -352,9 +424,46 @@ contract OrganicSupplyChain is
         products[productId].batchIds.push(batchId);
         custodianBatches[msg.sender].push(batchId);
 
+        // Update product status to Processing
+        Product storage product = products[productId];
+        ProductStatus oldStatus = product.status;
+        product.status = ProductStatus.Processing;
+        emit ProductStatusUpdated(productId, oldStatus, ProductStatus.Processing, block.timestamp);
+
         emit BatchCreated(batchId, productId, msg.sender, quantity);
         
         return batchId;
+    }
+
+    /**
+     * @notice Complete batch processing (Processor only)
+     * @param batchId Batch ID
+     */
+    function completeBatchProcessing(
+        uint256 batchId
+    ) external onlyProcessor batchExists(batchId) whenNotPaused {
+        Batch storage batch = batches[batchId];
+        
+        // Only the processor who created the batch can complete it
+        if (msg.sender != batch.processor) {
+            revert UnauthorizedAccess();
+        }
+        
+        // Must be in Processing status
+        if (batch.status != ProductStatus.Processing) {
+            revert InvalidOperation();
+        }
+        
+        batch.status = ProductStatus.Processed;
+        
+        // Update product status to Processed
+        uint256 productId = batch.productId;
+        Product storage product = products[productId];
+        ProductStatus oldStatus = product.status;
+        product.status = ProductStatus.Processed;
+
+        emit BatchCompleted(batchId, productId, block.timestamp);
+        emit ProductStatusUpdated(productId, oldStatus, ProductStatus.Processed, block.timestamp);
     }
 
     /**

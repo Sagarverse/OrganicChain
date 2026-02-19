@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { FaStore, FaTruck, FaBoxes, FaCheckCircle } from 'react-icons/fa';
+import { FaStore, FaTruck, FaBoxes, FaCheckCircle, FaHandHoldingBox } from 'react-icons/fa';
 import GlassCard from '../Layout/GlassCard';
 import Button from '../UI/Button';
-import { getCurrentAccount, getAllProducts, updateProductStatus } from '../../utils/blockchain';
+import { getCurrentAccount, getAllProducts, updateProductStatus, acceptDelivery } from '../../utils/blockchain';
 import { PRODUCT_STATUS } from '../../utils/constants';
 
 const RetailerDashboard: React.FC = () => {
@@ -59,11 +59,50 @@ const RetailerDashboard: React.FC = () => {
     }
   };
 
+  const handleAcceptDelivery = async (product: any) => {
+    if (!account) {
+      alert('Please connect your wallet first');
+      return;
+    }
+
+    if (!confirm(`Accept delivery of ${product.name}?\n\nThis will transfer custody to you as the retailer.`)) {
+      return;
+    }
+
+    setUpdatingProduct(Number(product.id));
+    try {
+      await acceptDelivery(Number(product.id));
+      alert(`✅ Delivery accepted!\n\nYou are now the custodian of ${product.name}.\nYou can now mark it for transit or delivery.`);
+      await loadProducts();
+    } catch (error: any) {
+      console.error('Error accepting delivery:', error);
+      alert(`Failed to accept delivery: ${error.message || 'Unknown error'}`);
+    } finally {
+      setUpdatingProduct(null);
+    }
+  };
+
   const getStatusActions = (product: any) => {
     const status = Number(product.status);
     
-    // Status: 0=Registered, 1=Harvested, 2=Processing, 3=Processed, 4=InTransit, 5=Delivered, 6=Verified
-    if (status === 3) { // Processed - ready for transit
+    // Status: 0=Planted, 1=Harvested, 2=Processing, 3=Processed, 4=InTransit, 5=Delivered
+    
+    // Accept Delivery - For Processed products not yet in retailer's custody
+    if (status === 3 && product.currentCustodian?.toLowerCase() !== account?.toLowerCase()) {
+      return (
+        <Button
+          onClick={() => handleAcceptDelivery(product)}
+          disabled={!account || updatingProduct === product.id}
+          variant="primary"
+          className="w-full bg-blue-600 hover:bg-blue-700 border-blue-500"
+        >
+          <FaHandHoldingBox className="inline mr-2" />
+          {updatingProduct === product.id ? 'Accepting...' : '📦 Accept Delivery'}
+        </Button>
+      );
+    }
+    
+    if (status === 3 && product.currentCustodian?.toLowerCase() === account?.toLowerCase()) { // Processed - in retailer custody, ready for transit
       return (
         <Button
           onClick={() => handleUpdateStatus(product.id, 4)}

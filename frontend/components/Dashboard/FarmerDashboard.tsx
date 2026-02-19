@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { FaSeedling, FaPlus, FaBox, FaFilter, FaQrcode, FaDownload, FaMapMarkerAlt, FaCalendar, FaShieldAlt } from 'react-icons/fa';
+import { FaSeedling, FaPlus, FaBox, FaFilter, FaQrcode, FaDownload, FaMapMarkerAlt, FaCalendar, FaShieldAlt, FaLeaf } from 'react-icons/fa';
 import GlassCard from '../Layout/GlassCard';
 import Button from '../UI/Button';
 import Input from '../UI/Input';
 import Modal from '../UI/Modal';
 import { useRouter } from 'next/router';
-import { getCurrentAccount, registerProduct, getFarmerProducts, getProductHistory, getAllProducts, checkRole } from '../../utils/blockchain';
+import { getCurrentAccount, registerProduct, getFarmerProducts, getProductHistory, getAllProducts, checkRole, harvestProduct } from '../../utils/blockchain';
 import { mockUploadToIPFS } from '../../utils/ipfs';
 import { CROP_TYPES, PRODUCT_STATUS } from '../../utils/constants';
 import { generateProductQRCode, downloadProductQRCode, formatDate, formatCoordinates } from '../../utils/qrcode';
@@ -176,6 +176,34 @@ const FarmerDashboard: React.FC = () => {
         maximumAge: 0
       }
     );
+  };
+
+  const handleHarvestProduct = async (product: any) => {
+    if (!account) {
+      alert('Please connect your wallet first');
+      return;
+    }
+
+    const quantityStr = prompt(`Enter estimated harvest quantity in kg for ${product.name}:`, '100');
+    if (!quantityStr) return;
+    
+    const quantity = parseInt(quantityStr);
+    if (isNaN(quantity) || quantity <= 0) {
+      alert('Please enter a valid quantity');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      await harvestProduct(Number(product.id), quantity);
+      alert(`✅ Product harvested successfully!\n\nProduct: ${product.name}\nQuantity: ${quantity} kg\n\nThe product is now ready for processing.`);
+      await loadProducts(account, showAllProducts);
+    } catch (error: any) {
+      console.error('Error harvesting product:', error);
+      alert(`Failed to harvest product: ${error.message || 'Unknown error'}`);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleViewQR = (product: any) => {
@@ -609,22 +637,37 @@ const FarmerDashboard: React.FC = () => {
                   </p>
                 </div>
 
-                <div className="mt-4 pt-4 border-t border-gray-700 flex gap-2">
-                  <Button 
-                    onClick={() => handleDownloadQR(product)}
-                    variant="secondary"
-                    className="flex-1"
-                  >
-                    <FaDownload className="inline mr-1" />
-                    QR Code
-                  </Button>
-                  <Button 
-                    onClick={() => window.open(`/consumer/${product.id}`, '_blank')}
-                    variant="primary"
-                    className="flex-1"
-                  >
-                    View Details
-                  </Button>
+                <div className="mt-4 pt-4 border-t border-gray-700">
+                  {/* Harvest Button - Only shown for Planted products by the farmer */}
+                  {Number(product.status) === 0 && product.farmer?.toLowerCase() === account?.toLowerCase() && (
+                    <Button 
+                      onClick={() => handleHarvestProduct(product)}
+                      disabled={isLoading}
+                      variant="primary"
+                      className="w-full mb-2 bg-green-600 hover:bg-green-700 border-green-500"
+                    >
+                      <FaLeaf className="inline mr-2" />
+                      {isLoading ? 'Harvesting...' : '🌾 Harvest Product'}
+                    </Button>
+                  )}
+                  
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={() => handleDownloadQR(product)}
+                      variant="secondary"
+                      className="flex-1"
+                    >
+                      <FaDownload className="inline mr-1" />
+                      QR Code
+                    </Button>
+                    <Button 
+                      onClick={() => window.open(`/consumer/${product.id}`, '_blank')}
+                      variant="primary"
+                      className="flex-1"
+                    >
+                      View Details
+                    </Button>
+                  </div>
                 </div>
               </GlassCard>
             ))}

@@ -134,6 +134,49 @@ export const updateProductStatus = async (
 };
 
 /**
+ * Harvest product (Farmer)
+ */
+export const harvestProduct = async (
+  productId: number,
+  estimatedQuantity: number
+) => {
+  const contract = await getContract(true);
+  if (!contract) throw new Error('Contract not available');
+
+  const tx = await contract.harvestProduct(productId, estimatedQuantity);
+  const receipt = await tx.wait();
+  return receipt;
+};
+
+/**
+ * Accept delivery (Processor/Retailer)
+ */
+export const acceptDelivery = async (
+  productId: number
+) => {
+  const contract = await getContract(true);
+  if (!contract) throw new Error('Contract not available');
+
+  const tx = await contract.acceptDelivery(productId);
+  const receipt = await tx.wait();
+  return receipt;
+};
+
+/**
+ * Complete batch processing (Processor)
+ */
+export const completeBatchProcessing = async (
+  batchId: number
+) => {
+  const contract = await getContract(true);
+  if (!contract) throw new Error('Contract not available');
+
+  const tx = await contract.completeBatchProcessing(batchId);
+  const receipt = await tx.wait();
+  return receipt;
+};
+
+/**
  * Approve a certificate (Inspector)
  */
 export const approveCertificate = async (

@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { FaIndustry, FaPlus, FaThermometerHalf, FaBoxOpen } from 'react-icons/fa';
+import { FaIndustry, FaPlus, FaThermometerHalf, FaBoxOpen, FaCheckCircle, FaTruck } from 'react-icons/fa';
 import GlassCard from '../Layout/GlassCard';
 import Button from '../UI/Button';
 import Input from '../UI/Input';
 import Modal from '../UI/Modal';
-import { getCurrentAccount, getAllProducts, createBatch, addSensorData, updateProductStatus } from '../../utils/blockchain';
+import { getCurrentAccount, getAllProducts, createBatch, addSensorData, updateProductStatus, acceptDelivery, completeBatchProcessing } from '../../utils/blockchain';
 import { PRODUCT_STATUS } from '../../utils/constants';
 
 const ProcessorDashboard: React.FC = () => {
@@ -16,6 +16,7 @@ const ProcessorDashboard: React.FC = () => {
   const [isSensorModalOpen, setIsSensorModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [processingProductId, setProcessingProductId] = useState<number | null>(null);
   const [formData, setFormData] = useState({
     productId: 0,
     quantity: '',
@@ -124,6 +125,61 @@ const ProcessorDashboard: React.FC = () => {
       alert('Failed to add sensor data: ' + (error.message || 'Unknown error'));
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleAcceptDelivery = async (product: any) => {
+    if (!account) {
+      alert('Please connect your wallet first');
+      return;
+    }
+
+    if (!confirm(`Accept delivery of ${product.name}?\n\nThis will transfer custody to you as the processor.`)) {
+      return;
+    }
+
+    try {
+      setProcessingProductId(Number(product.id));
+      await acceptDelivery(Number(product.id));
+      alert(`✅ Delivery accepted!\n\nYou are now the custodian of ${product.name}.\nYou can now create a processing batch.`);
+      await loadProducts();
+    } catch (error: any) {
+      console.error('Error accepting delivery:', error);
+      alert(`Failed to accept delivery: ${error.message || 'Unknown error'}`);
+    } finally {
+      setProcessingProductId(null);
+    }
+  };
+
+  const handleCompleteBatch = async (product: any) => {
+    if (!account) {
+      alert('Please connect your wallet first');
+      return;
+    }
+
+    // Find the batch ID for this product
+    const batchIds = product.batchIds || [];
+    if (batchIds.length === 0) {
+      alert('No batch found for this product');
+      return;
+    }
+
+    const batchId = Number(batchIds[batchIds.length - 1]); // Get the most recent batch
+
+    if (!confirm(`Mark processing complete for ${product.name}?\n\nBatch ID: ${batchId}\n\nThis will mark the product as Processed and ready for retailer.`)) {
+      return;
+    }
+
+    try {
+      setProcessingProductId(Number(product.id));
+      await completeBatchProcessing(batchId);
+      alert(`✅ Processing complete!\n\nProduct: ${product.name}\nBatch: ${batchId}\n\nThe product is now ready for retailer.`);
+      await loadProducts();
+    } catch (error: any) {
+      console.error('Error completing batch:', error);
+      alert(`Failed to complete processing: ${error.message || 'Unknown error'}`);
+    } finally {
+      setProcessingProductId(null);
     }
   };
 
@@ -240,19 +296,52 @@ const ProcessorDashboard: React.FC = () => {
                     <span className="text-gray-400">Score:</span>{' '}
                     <span className="text-yellow-400">{Number(product.authenticityScore)}/100</span>
                   </p>
+                  <p>
+                    <span className="text-gray-400">Custodian:</span>{' '}
+                    <span className="font-mono text-xs">{product.currentCustodian?.slice(0, 6)}...{product.currentCustodian?.slice(-4)}</span>
+                  </p>
                 </div>
 
-                {Number(product.status) === 1 && (
-                  <Button 
-                    onClick={() => openBatchModal(product)}
-                    disabled={!account}
-                    variant="primary"
-                    className="w-full"
-                  >
-                    <FaPlus className="inline mr-2" />
-                    Create Batch
-                  </Button>
-                )}
+                <div className="space-y-2">
+                  {/* Accept Delivery - For Harvested products not yet in processor's custody */}
+                  {Number(product.status) === 1 && product.currentCustodian?.toLowerCase() !== account?.toLowerCase() && (
+                    <Button 
+                      onClick={() => handleAcceptDelivery(product)}
+                      disabled={!account || processingProductId === Number(product.id)}
+                      variant="primary"
+                      className="w-full bg-blue-600 hover:bg-blue-700 border-blue-500"
+                    >
+                      <FaTruck className="inline mr-2" />
+                      {processingProductId === Number(product.id) ? 'Accepting...' : '📦 Accept Delivery'}
+                    </Button>
+                  )}
+
+                  {/* Create Batch - For Harvested products in processor's custody */}
+                  {Number(product.status) === 1 && product.currentCustodian?.toLowerCase() === account?.toLowerCase() && (
+                    <Button 
+                      onClick={() => openBatchModal(product)}
+                      disabled={!account}
+                      variant="primary"
+                      className="w-full"
+                    >
+                      <FaPlus className="inline mr-2" />
+                      Create Batch
+                    </Button>
+                  )}
+
+                  {/* Complete Processing - For products currently being processed */}
+                  {Number(product.status) === 2 && (
+                    <Button 
+                      onClick={() => handleCompleteBatch(product)}
+                      disabled={!account || processingProductId === Number(product.id)}
+                      variant="primary"
+                      className="w-full bg-green-600 hover:bg-green-700 border-green-500"
+                    >
+                      <FaCheckCircle className="inline mr-2" />
+                      {processingProductId === Number(product.id) ? 'Completing...' : '✅ Complete Processing'}
+                    </Button>
+                  )}
+                </div>
               </GlassCard>
             ))}
           </div>
