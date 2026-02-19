@@ -78,6 +78,12 @@ const Navbar: React.FC = () => {
           <Link href="/inspector" className="nav-link hover:text-primary-400 transition-colors">
             Inspector
           </Link>
+          <Link href="/location" className="nav-link hover:text-primary-400 transition-colors">
+            📍 Tracking
+          </Link>
+          <Link href="/admin" className="nav-link hover:text-primary-400 transition-colors">
+            Admin
+          </Link>
           <Link href="/consumer" className="nav-link hover:text-primary-400 transition-colors">
             Verify Product
           </Link>

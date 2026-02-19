@@ -336,6 +336,57 @@ export const getAllProducts = async () => {
 };
 
 /**
+ * Get all batches (for display purposes)
+ */
+export const getAllBatches = async () => {
+  const contract = await getContract(false);
+  if (!contract) throw new Error('Contract not available');
+
+  const totalCount = await contract.getTotalBatches();
+  const count = Number(totalCount);
+  
+  const batches = [];
+  for (let i = 1; i <= count; i++) {
+    try {
+      const batch = await contract.batches(i);
+      
+      // Get location history length
+      const locationHistoryLength = Number(batch.locationHistory?.length || 0);
+      const locationHistory = [];
+      
+      // Fetch each location in history
+      for (let j = 0; j < locationHistoryLength; j++) {
+        try {
+          const location = batch.locationHistory[j];
+          locationHistory.push({
+            latitude: location.latitude,
+            longitude: location.longitude,
+            timestamp: Number(location.timestamp)
+          });
+        } catch (err) {
+          console.error(`Error loading location ${j} for batch ${i}:`, err);
+        }
+      }
+      
+      batches.push({
+        id: i,
+        productId: Number(batch.productId),
+        processor: batch.processor,
+        quantity: Number(batch.quantity),
+        processingDate: Number(batch.processingDate),
+        expiryDate: Number(batch.expiryDate),
+        completed: batch.completed,
+        locationHistory
+      });
+    } catch (error) {
+      console.error(`Error loading batch ${i}:`, error);
+    }
+  }
+  
+  return batches;
+};
+
+/**
  * Add certificate
  */
 export const addCertificate = async (
@@ -531,5 +582,56 @@ export const checkRole = async (address: string, roleName: string) => {
   } catch (error) {
     console.error('Error checking role:', error);
     return false;
+  }
+};
+
+/**
+ * Delete a product (admin only)
+ */
+export const deleteProduct = async (productId: number) => {
+  const contract = await getContract(true);
+  if (!contract) throw new Error('Contract not available');
+
+  try {
+    const tx = await contract.deleteProduct(productId);
+    await tx.wait();
+    return tx;
+  } catch (error) {
+    console.error('Error deleting product:', error);
+    throw error;
+  }
+};
+
+/**
+ * Delete a batch (admin only)
+ */
+export const deleteBatch = async (batchId: number) => {
+  const contract = await getContract(true);
+  if (!contract) throw new Error('Contract not available');
+
+  try {
+    const tx = await contract.deleteBatch(batchId);
+    await tx.wait();
+    return tx;
+  } catch (error) {
+    console.error('Error deleting batch:', error);
+    throw error;
+  }
+};
+
+/**
+ * Recall a product (admin/inspector only)
+ */
+export const recallProduct = async (productId: number, reason: string) => {
+  const contract = await getContract(true);
+  if (!contract) throw new Error('Contract not available');
+
+  try {
+    const tx = await contract.recallProduct(productId, reason);
+    await tx.wait();
+    return tx;
+  } catch (error) {
+    console.error('Error recalling product:', error);
+    throw error;
   }
 };

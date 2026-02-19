@@ -8,6 +8,7 @@ import CarbonFootprint from '../../components/Advanced/CarbonFootprint';
 import FreshnessScore from '../../components/Advanced/FreshnessScore';
 import SustainabilityScore from '../../components/Advanced/SustainabilityScore';
 import ComparisonAnalytics from '../../components/Advanced/ComparisonAnalytics';
+import ProductJourneyMap from '../../components/Maps/ProductJourneyMap';
 import { getProductHistory, verifyProduct, calculateDistance } from '../../utils/blockchain';
 import { FaQrcode, FaCertificate, FaMapMarkedAlt, FaIndustry, FaThermometerHalf, FaBox } from 'react-icons/fa';
 
@@ -263,21 +264,17 @@ export default function ConsumerProductPage() {
             <ProductTrace product={product} batches={batches} />
           </GlassCard>
 
-          {/* Map Placeholder */}
+          {/* Interactive Journey Map */}
           <GlassCard>
             <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
               <FaMapMarkedAlt className="text-primary-400" />
               Journey Map
             </h3>
-            <div className="map-container bg-gray-800/50 flex items-center justify-center text-gray-500">
-              <div className="text-center">
-                <FaMapMarkedAlt className="text-6xl mx-auto mb-3 opacity-30" />
-                <p>Interactive map showing product journey</p>
-                <p className="text-sm mt-2">
-                  From: {product.farmLocation.latitude}, {product.farmLocation.longitude}
-                </p>
-              </div>
-            </div>
+            <ProductJourneyMap
+              farmLocation={product.farmLocation}
+              batches={batches}
+              product={product}
+            />
           </GlassCard>
 
           {/* Comparative Analytics */}

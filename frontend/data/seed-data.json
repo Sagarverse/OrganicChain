@@ -1,8 +1,7 @@
 {
+  "contractAddress": "0xb7278A61aa25c888815aFC32Ad3cC52fF24fE575",
   "network": "localhost",
-  "contractAddress": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
-  "timestamp": "2026-02-19T07:38:31.696Z",
-  "totalProducts": 5,
+  "timestamp": "2026-02-19T11:27:00.247Z",
   "products": [
     {
       "productId": 1,
@@ -10,12 +9,8 @@
       "name": "Organic Hass Avocados",
       "farmer": "Green Valley Farms",
       "location": "California, USA",
-      "description": "Premium Hass avocados grown in rich California soil, certified 100% organic. Hand-picked at peak ripeness.",
-      "ipfsHash": "Qm4f7267616e696320486173732041766f6361646f7355",
-      "score": "100",
-      "certificationBody": "USDA Organic",
-      "quantity": 453,
-      "qrCodePath": "qrcodes/product-1.png"
+      "score": "70",
+      "qrData": "1"
     },
     {
       "productId": 2,
@@ -23,12 +18,8 @@
       "name": "Heirloom Tomatoes",
       "farmer": "Sunshine Organic Gardens",
       "location": "Florida, USA",
-      "description": "Heritage variety tomatoes with exceptional flavor. Grown using traditional organic farming methods.",
-      "ipfsHash": "Qm486569726c6f6f6d20546f6d61746f65735553444120",
-      "score": "100",
-      "certificationBody": "USDA Organic",
-      "quantity": 259,
-      "qrCodePath": "qrcodes/product-2.png"
+      "score": "70",
+      "qrData": "2"
     },
     {
       "productId": 3,
@@ -36,12 +27,8 @@
       "name": "Wild Blueberries",
       "farmer": "Coastal Berry Co-op",
       "location": "Maine, USA",
-      "description": "Wild-harvested blueberries from pristine Maine forests. Rich in antioxidants and natural sweetness.",
-      "ipfsHash": "Qm57696c6420426c7565626572726965734d61696e6520",
-      "score": "100",
-      "certificationBody": "Maine Organic Farmers",
-      "quantity": 235,
-      "qrCodePath": "qrcodes/product-3.png"
+      "score": "70",
+      "qrData": "3"
     },
     {
       "productId": 4,
@@ -49,12 +36,8 @@
       "name": "Organic Honeycrisp Apples",
       "farmer": "Cascade Orchards",
       "location": "Washington, USA",
-      "description": "Crisp, sweet apples from high-altitude orchards. Perfect balance of sweet and tart flavors.",
-      "ipfsHash": "Qm4f7267616e696320486f6e6579637269737020417070",
-      "score": "100",
-      "certificationBody": "Washington State Organic",
-      "quantity": 248,
-      "qrCodePath": "qrcodes/product-4.png"
+      "score": "70",
+      "qrData": "4"
     },
     {
       "productId": 5,
@@ -62,19 +45,24 @@
       "name": "Heritage Purple Potatoes",
       "farmer": "Mountain View Farm",
       "location": "Idaho, USA",
-      "description": "Rare purple potatoes rich in anthocyanins. Unique nutty flavor and vibrant color.",
-      "ipfsHash": "Qm486572697461676520507572706c6520506f7461746f",
-      "score": "100",
-      "certificationBody": "Idaho Organic Certification",
-      "quantity": 458,
-      "qrCodePath": "qrcodes/product-5.png"
+      "score": "70",
+      "qrData": "5"
+    },
+    {
+      "productId": 6,
+      "batchId": 6,
+      "name": "Suspicious Organic Kale",
+      "farmer": "Unknown Supplier",
+      "location": "Unknown",
+      "score": "75",
+      "qrData": "6",
+      "isFraud": true
     }
   ],
-  "ipfsGateway": "https://gateway.pinata.cloud/ipfs/",
   "accounts": {
-    "farmer": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
-    "processor": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
-    "retailer": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
-    "inspector": "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65"
+    "deployer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+    "processor": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+    "retailer": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+    "inspector": "0x90F79bf6EB2c4f870365E785982E1f101E93b906"
   }
 }

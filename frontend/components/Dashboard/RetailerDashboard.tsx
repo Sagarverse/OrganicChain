@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { FaStore, FaTruck, FaBoxes, FaCheckCircle, FaHandHoldingBox } from 'react-icons/fa';
+import { FaStore, FaTruck, FaBoxes, FaCheckCircle, FaHandHolding } from 'react-icons/fa';
 import GlassCard from '../Layout/GlassCard';
 import Button from '../UI/Button';
 import { getCurrentAccount, getAllProducts, updateProductStatus, acceptDelivery } from '../../utils/blockchain';
@@ -96,7 +96,7 @@ const RetailerDashboard: React.FC = () => {
           variant="primary"
           className="w-full bg-blue-600 hover:bg-blue-700 border-blue-500"
         >
-          <FaHandHoldingBox className="inline mr-2" />
+          <FaHandHolding className="inline mr-2" />
           {updatingProduct === product.id ? 'Accepting...' : '📦 Accept Delivery'}
         </Button>
       );

@@ -191,8 +191,13 @@ async function main() {
     await (await contract.connect(processor).updateProductStatus(productId, 3)).wait(); // Processed
     console.log("   ✓ Status: Processed");
 
+    // Transfer custody to processor first (current custodian starts as deployer)
+    console.log("8️⃣ Transferring to processor...");
+    await (await contract.connect(deployer).transferCustody(batchId, processor.address)).wait();
+    console.log("   ✓ Custody transferred to processor");
+
     // Transfer custody to retailer
-    console.log("8️⃣ Transferring to retailer...");
+    console.log("9️⃣ Transferring to retailer...");
     await (await contract.connect(processor).transferCustody(batchId, retailer.address)).wait();
     console.log("   ✓ Custody transferred to retailer");
 

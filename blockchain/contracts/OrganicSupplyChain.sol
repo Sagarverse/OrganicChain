@@ -218,7 +218,17 @@ contract OrganicSupplyChain is
         uint256 indexed productId,
         uint256 newScore
     );
+    event ProductDeleted(
+        uint256 indexed productId,
+        address indexed deletedBy,
+        uint256 timestamp
+    );
 
+    event BatchDeleted(
+        uint256 indexed batchId,
+        address indexed deletedBy,
+        uint256 timestamp
+    );
     // ============ Modifiers ============
     modifier onlyFarmer() {
         if (!hasRole(FARMER_ROLE, msg.sender)) revert UnauthorizedAccess();
@@ -845,6 +855,55 @@ contract OrganicSupplyChain is
     }
 
     // ============ Admin Functions ============
+    
+    /**
+     * @notice Delete a product record (admin only)
+     * @param productId The product ID to delete
+     */
+    function deleteProduct(uint256 productId) 
+        external 
+        onlyRole(DEFAULT_ADMIN_ROLE) 
+        whenNotPaused 
+    {
+        if (productId == 0 || productId > _productIdCounter) {
+            revert InvalidProductId();
+        }
+        
+        Product storage product = products[productId];
+        if (product.farmer == address(0)) {
+            revert ProductNotFound();
+        }
+
+        // Mark as deleted by setting farmer to zero address
+        delete products[productId];
+        
+        emit ProductDeleted(productId, msg.sender, block.timestamp);
+    }
+
+    /**
+     * @notice Delete a batch record (admin only)
+     * @param batchId The batch ID to delete
+     */
+    function deleteBatch(uint256 batchId) 
+        external 
+        onlyRole(DEFAULT_ADMIN_ROLE) 
+        whenNotPaused 
+    {
+        if (batchId == 0 || batchId > _batchIdCounter) {
+            revert InvalidBatchId();
+        }
+        
+        Batch storage batch = batches[batchId];
+        if (batch.processor == address(0)) {
+            revert BatchNotFound();
+        }
+
+        // Mark as deleted by clearing batch data
+        delete batches[batchId];
+        
+        emit BatchDeleted(batchId, msg.sender, block.timestamp);
+    }
+
     function pause() external onlyRole(DEFAULT_ADMIN_ROLE) {
         _pause();
     }
