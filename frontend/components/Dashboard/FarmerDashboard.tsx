@@ -26,6 +26,7 @@ const FarmerDashboard: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [cypressSuccess, setCypressSuccess] = useState(false);
+  const [lastRegisteredName, setLastRegisteredName] = useState('');
   const [formError, setFormError] = useState('');
   const [qrCodes, setQrCodes] = useState<{ [key: number]: string }>({});
   const [showQRModal, setShowQRModal] = useState(false);
@@ -423,6 +424,7 @@ const FarmerDashboard: React.FC = () => {
       setIsLoading(true);
       setSuccessMessage('Product registered successfully');
       setCypressSuccess(true);
+      setLastRegisteredName(formData.name);
       skipNextLoadRef.current = true;
       loadGenerationRef.current += 1;
       setProducts((prev) => [
@@ -454,6 +456,7 @@ const FarmerDashboard: React.FC = () => {
         estimatedQuantity: ''
       });
       setCertificateFile(null);
+      setLoadingProducts(false);
       setIsLoading(false);
       return;
     }
@@ -509,6 +512,7 @@ const FarmerDashboard: React.FC = () => {
 
       alert('Product registered successfully! Your product is now on the blockchain.');
       setSuccessMessage('Product registered successfully');
+      setLastRegisteredName(formData.name);
       setProducts((prev) => [
         {
           id: prev.length + 1,
@@ -742,6 +746,7 @@ const FarmerDashboard: React.FC = () => {
             onClick={() => {
               setFormError('');
               setCypressSuccess(false);
+              setLastRegisteredName('');
               setIsModalOpen(true);
             }}
             data-cy="register-product-btn"
@@ -756,7 +761,8 @@ const FarmerDashboard: React.FC = () => {
 
       {(successMessage || cypressSuccess) && (
         <div className="bg-green-900/30 border border-green-600/50 rounded-lg p-3 text-green-300">
-          {successMessage || 'Product registered successfully'}
+          <div>{successMessage || 'Product registered successfully'}</div>
+          {lastRegisteredName && <div className="text-sm">{lastRegisteredName}</div>}
         </div>
       )}
 

@@ -67,9 +67,11 @@ const ProcessorDashboard: React.FC = () => {
 
   const openBatchModal = (product: any) => {
     setSelectedProduct(product);
+    // Pre-fill with product harvest quantity as suggested amount
+    const suggestedQuantity = product.harvestQuantity || product.quantity || '';
     setFormData({
       productId: product.id,
-      quantity: '',
+      quantity: suggestedQuantity.toString(),
       processingLocation: '',
       processingNotes: '',
       temperature: '',
@@ -365,20 +367,48 @@ const ProcessorDashboard: React.FC = () => {
       {/* Process Batch Modal */}
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Process Batch">
         <form onSubmit={handleProcessBatch} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-2">Product</label>
-            <p className="text-primary-400 font-bold text-lg">{selectedProduct?.name}</p>
-            <p className="text-gray-400 text-sm">ID: #{selectedProduct?.id}</p>
+          <div className="bg-primary-500/10 border border-primary-500/30 rounded-lg p-4 space-y-3">
+            <div>
+              <p className="text-gray-400 text-sm mb-1">Product Name</p>
+              <p className="text-primary-400 font-bold text-lg">{selectedProduct?.name}</p>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-gray-400 mb-1">Product ID</p>
+                <p className="text-white font-mono">#{selectedProduct?.id}</p>
+              </div>
+              <div>
+                <p className="text-gray-400 mb-1">Authenticity Score</p>
+                <p className="text-yellow-400 font-bold">{Number(selectedProduct?.authenticityScore)}/100</p>
+              </div>
+              <div>
+                <p className="text-gray-400 mb-1">Farmer</p>
+                <p className="text-white font-mono text-xs">{selectedProduct?.farmer?.slice(0, 8)}...</p>
+              </div>
+              <div>
+                <p className="text-gray-400 mb-1">Status</p>
+                <span className="inline-block status-badge status-harvested text-xs">Harvested</span>
+              </div>
+            </div>
+
+            {selectedProduct?.harvestQuantity && (
+              <div>
+                <p className="text-gray-400 text-sm mb-1">Harvest Quantity Available</p>
+                <p className="text-white font-bold">{selectedProduct.harvestQuantity} kg</p>
+              </div>
+            )}
           </div>
 
           <Input
-            label="Quantity (kg)"
+            label="Quantity to Process (kg)"
             name="quantity"
             type="number"
             value={formData.quantity}
             onChange={handleInputChange}
             required
             min="1"
+            max={selectedProduct?.harvestQuantity || undefined}
             placeholder="Enter quantity in kg"
           />
 

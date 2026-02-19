@@ -35,7 +35,9 @@ export default function ConsumerProductPage() {
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isBatchOpen, setIsBatchOpen] = useState(false);
   const [isCertificateOpen, setIsCertificateOpen] = useState(false);
+  const [selectedBatchIndex, setSelectedBatchIndex] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [reportGenerating, setReportGenerating] = useState(false);
 
   useEffect(() => {
     if (productId) {
@@ -146,6 +148,85 @@ export default function ConsumerProductPage() {
     const plantedDate = normalizeTimestamp(product.plantedDate);
     const now = Math.floor(Date.now() / 1000);
     return Math.floor((now - plantedDate) / 86400);
+  };
+
+  // Helper function to generate PDF report
+  const generateReport = async () => {
+    setReportGenerating(true);
+    try {
+      // Create a simple verification report
+      const reportContent = `
+PRODUCT VERIFICATION REPORT
+===========================
+Generated: ${new Date().toLocaleString()}
+
+PRODUCT INFORMATION:
+Name: ${product.name}
+ID: ${product.id}
+Status: ${statusLabel}
+Farmer: ${product.farmer}
+Farm Location: ${product.farmLocation?.latitude}, ${product.farmLocation?.longitude}
+
+VERIFICATION DETAILS:
+Authenticity Score: ${verificationDisplay.score}/100
+Authentic: ${verificationDisplay.isAuthentic ? 'YES' : 'NO'}
+Details: ${verificationDisplay.details}
+
+SUPPLY CHAIN METRICS:
+Total Batches: ${batches.length}
+Distance Traveled: ${calculateTravelDistance().toFixed(2)} km
+Storage Days: ${calculateStorageDays()} days
+
+This report certifies that the above product has been verified through
+our blockchain-based supply chain system.
+      `;
+
+      // Create and download as text file
+      const element = document.createElement('a');
+      element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(reportContent));
+      element.setAttribute('download', `product-${product.id}-verification-report.txt`);
+      element.style.display = 'none';
+      document.body.appendChild(element);
+      element.click();
+      document.body.removeChild(element);
+    } catch (error) {
+      console.error('Error generating report:', error);
+      alert('Failed to generate report');
+    } finally {
+      setReportGenerating(false);
+    }
+  };
+
+  // Copy product verification link to clipboard
+  const copyProductLink = () => {
+    if (typeof window !== 'undefined') {
+      const url = `${window.location.origin}/consumer/${product.id}`;
+      navigator.clipboard.writeText(url).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      }).catch(() => {
+        alert('Failed to copy link');
+      });
+    }
+  };
+
+  // Share to social media
+  const shareToSocial = (platform: 'twitter' | 'facebook') => {
+    if (typeof window === 'undefined') return;
+    
+    const url = `${window.location.origin}/consumer/${product.id}`;
+    const text = `Check out this verified organic product: ${product.name}`;
+    
+    let shareUrl = '';
+    if (platform === 'twitter') {
+      shareUrl = `https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`;
+    } else if (platform === 'facebook') {
+      shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
+    }
+    
+    if (shareUrl) {
+      window.open(shareUrl, '_blank', 'width=600,height=400');
+    }
   };
 
   const statusLabel = product ? PRODUCT_STATUS[normalizeStatus(product.status)] || String(product.status) : '';
@@ -491,21 +572,23 @@ export default function ConsumerProductPage() {
               </Button>
             </div>
             <div className="mt-4 flex gap-3">
-              <Button variant="primary" data-cy="download-report-btn">
-                Download Report
+              <Button 
+                variant="primary" 
+                data-cy="download-report-btn"
+                onClick={generateReport}
+                disabled={reportGenerating}
+              >
+                {reportGenerating ? 'Generating...' : 'Download Report'}
               </Button>
               <Button
                 variant="secondary"
                 data-cy="copy-link-btn"
-                onClick={() => {
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 1500);
-                }}
+                onClick={copyProductLink}
               >
-                Copy Link
+                {copied ? '✓ Copied!' : 'Copy Link'}
               </Button>
             </div>
-            {copied && <div className="mt-2 text-sm text-green-400">Copied</div>}
+            {copied && <div className="mt-2 text-sm text-green-400">Link copied to clipboard!</div>}
           </GlassCard>
         </div>
       </div>
@@ -531,8 +614,82 @@ export default function ConsumerProductPage() {
         <div className="space-y-4">
           {batches.length > 0 ? (
             <div>
-              <p className="text-sm text-gray-400">Batch #{Number(batches[0].batchId)}</p>
-              <div className="text-sm text-gray-300">Quantity: {Number(batches[0].quantity)} kg</div>
+              <div className="flex justify-between items-center mb-4">
+                <div>
+                  <h4 className="text-lg font-bold">Batch #{batches.length > 0 ? Number(batches[selectedBatchIndex]?.batchId) : 'N/A'}</h4>
+                  <p className="text-xs text-gray-400 mt-1">Processor: {batches[selectedBatchIndex]?.processor?.substring(0, 20)}...</p>
+                </div>
+                <span className="px-3 py-1 bg-green-500/20 text-green-400 rounded-full text-xs font-semibold">✓ Processed</span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <p className="text-gray-400 text-xs">Quantity</p>
+                  <p className="font-semibold text-lg">{Number(batches[selectedBatchIndex]?.quantity)} kg</p>
+                </div>
+                <div>
+                  <p className="text-gray-400 text-xs">Date</p>
+                  <p className="font-semibold text-lg">
+                    {new Date(Number(batches[selectedBatchIndex]?.processedDate) * 1000).toLocaleDateString()}
+                  </p>
+                </div>
+                {batches[selectedBatchIndex]?.sensorLogs && batches[selectedBatchIndex]?.sensorLogs.length > 0 && (
+                  <>
+                    <div>
+                      <p className="text-gray-400 text-xs flex items-center gap-1">
+                        <FaThermometerHalf />
+                        Temperature
+                      </p>
+                      <p className="font-semibold text-lg">
+                        {(Number(batches[selectedBatchIndex]?.sensorLogs[0]?.temperature) / 100).toFixed(1)}°C
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400 text-xs">Humidity</p>
+                      <p className="font-semibold text-lg">
+                        {(Number(batches[selectedBatchIndex]?.sensorLogs[0]?.humidity) / 100).toFixed(0)}%
+                      </p>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {batches[selectedBatchIndex]?.packagingDetails && (
+                <div className="p-3 bg-primary-500/10 border border-primary-500/30 rounded">
+                  <p className="text-gray-400 text-xs mb-1 flex items-center gap-1">
+                    <FaBox />
+                    Packaging Details
+                  </p>
+                  <p className="text-sm">{batches[selectedBatchIndex]?.packagingDetails}</p>
+                </div>
+              )}
+
+              {(batches[selectedBatchIndex]?.sensorLogs || []).some((log: any) => log.anomalyDetected || log.anomaly) && (
+                <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded text-xs text-yellow-400">
+                  ⚠️ Temperature anomalies detected during storage
+                </div>
+              )}
+
+              {batches.length > 1 && (
+                <div className="pt-4 border-t border-gray-700">
+                  <p className="text-xs text-gray-400 mb-2">Select Batch:</p>
+                  <div className="flex gap-2 flex-wrap">
+                    {batches.map((_, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setSelectedBatchIndex(idx)}
+                        className={`px-3 py-1 rounded text-xs font-semibold transition-colors ${
+                          selectedBatchIndex === idx
+                            ? 'bg-primary-500 text-white'
+                            : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                        }`}
+                      >
+                        Batch {idx + 1}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="text-sm text-gray-400">No batch details available.</div>
@@ -542,46 +699,99 @@ export default function ConsumerProductPage() {
 
       {/* Certificate Modal */}
       <Modal isOpen={isCertificateOpen} onClose={() => setIsCertificateOpen(false)} title="Certificate Details">
-        <div className="space-y-3">
-          <div className="text-sm text-gray-300">Certificate</div>
-          <div className="text-sm text-gray-400">USDA Organic</div>
-          <span className="inline-flex items-center px-2 py-1 text-xs bg-green-500/20 text-green-400 rounded" data-cy="approval-badge">
-            Approved
-          </span>
-          <div className="text-xs text-gray-500">Valid Until</div>
-          <a
-            href={getIPFSUrl('QmMockCertHash')}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-primary-300 underline text-sm"
-            data-cy="ipfs-link"
-          >
-            View IPFS
-          </a>
+        <div className="space-y-4">
+          {batches.some((b: any) => b.certificateIds && b.certificateIds.length > 0) ? (
+            <>
+              {batches.map((batch: any, batchidx: number) =>
+                batch.certificateIds?.map((certId: any, certIdx: number) => {
+                  const cert = certificateDetails[Number(certId)];
+                  return (
+                    <div
+                      key={`${batchidx}-${certIdx}`}
+                      className="p-4 bg-green-500/10 border border-green-500/30 rounded-lg"
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <p className="font-semibold text-green-400">
+                            ✓ Organic Certification #{Number(certId)}
+                          </p>
+                          <p className="text-sm text-gray-400">Issuer: {cert?.issuer || 'Unknown Issuer'}</p>
+                          {cert?.validUntil && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              Valid until {new Date(Number(cert.validUntil) * 1000).toLocaleDateString()}
+                            </p>
+                          )}
+                        </div>
+                        <span className="inline-flex items-center px-2 py-1 text-xs bg-green-500/20 text-green-400 rounded">
+                          Approved
+                        </span>
+                      </div>
+                      <div className="text-xs text-gray-400 mb-3">
+                        Status: Primary Organic Certification
+                      </div>
+                      {cert?.documentHash ? (
+                        <a
+                          href={getIPFSUrl(cert.documentHash)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-block text-primary-300 hover:text-primary-200 underline text-sm"
+                        >
+                          View Document on IPFS
+                        </a>
+                      ) : (
+                        <span className="text-xs text-gray-500">No document available</span>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </>
+          ) : (
+            <div className="text-sm text-gray-500">No certificates available for this product.</div>
+          )}
         </div>
       </Modal>
 
       {/* Share Modal */}
       <Modal isOpen={isShareOpen} onClose={() => setIsShareOpen(false)} title="Share Verification">
         <div className="space-y-4" data-cy="share-modal">
-          <div className="flex gap-3">
-            <Button variant="secondary">Twitter</Button>
-            <Button variant="secondary">Facebook</Button>
+          <div>
+            <p className="text-sm text-gray-400 mb-3">Share this product verification on social media:</p>
+            <div className="flex gap-3">
+              <Button 
+                variant="secondary" 
+                onClick={() => shareToSocial('twitter')}
+              >
+                Share on Twitter
+              </Button>
+              <Button 
+                variant="secondary"
+                onClick={() => shareToSocial('facebook')}
+              >
+                Share on Facebook
+              </Button>
+            </div>
           </div>
-          <div className="flex gap-3">
-            <Button variant="primary" data-cy="download-report-btn">Download Report</Button>
-            <Button
-              variant="secondary"
-              data-cy="copy-link-btn"
-              onClick={() => {
-                setCopied(true);
-                setTimeout(() => setCopied(false), 1500);
-              }}
-            >
-              Copy Link
-            </Button>
+          
+          <div className="border-t border-gray-700 pt-4">
+            <p className="text-sm text-gray-400 mb-3">Or export as report:</p>
+            <div className="flex gap-3">
+              <Button 
+                variant="primary" 
+                onClick={generateReport}
+                disabled={reportGenerating}
+              >
+                {reportGenerating ? 'Generating...' : 'Download Report'}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={copyProductLink}
+              >
+                {copied ? '✓ Copied!' : 'Copy Link'}
+              </Button>
+            </div>
+            {copied && <div className="mt-2 text-sm text-green-400">Link copied!</div>}
           </div>
-          {copied && <div className="text-sm text-green-400">Copied</div>}
         </div>
       </Modal>
 
