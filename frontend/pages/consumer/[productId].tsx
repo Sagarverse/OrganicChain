@@ -31,6 +31,8 @@ export default function ConsumerProductPage() {
   const [verification, setVerification] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [certificateDetails, setCertificateDetails] = useState<Record<number, any>>({});
+  const [statusMessage, setStatusMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
   const [isArOpen, setIsArOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isBatchOpen, setIsBatchOpen] = useState(false);
@@ -49,6 +51,8 @@ export default function ConsumerProductPage() {
     const loadingStart = Date.now();
     try {
       setIsLoading(true);
+      setStatusMessage('Fetching from blockchain...');
+      setErrorMessage('');
       const id = parseInt(productId as string);
       
       // Get product history
@@ -93,8 +97,18 @@ export default function ConsumerProductPage() {
       } else {
         setVerification(verificationData);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading product:', error);
+      const message = String(error?.message || 'Unknown error');
+      if (message.includes('INVALID_PRODUCT_ID')) {
+        setErrorMessage('Invalid product ID');
+      } else if (message.includes('PRODUCT_NOT_FOUND')) {
+        setErrorMessage('Product not found on blockchain');
+      } else if (message.includes('NETWORK_ERROR')) {
+        setErrorMessage('Network error. Unable to reach Polygon RPC.');
+      } else {
+        setErrorMessage('Failed to fetch product from blockchain');
+      }
     } finally {
       const elapsed = Date.now() - loadingStart;
       const delay = elapsed < 600 ? 600 - elapsed : 0;
@@ -103,6 +117,7 @@ export default function ConsumerProductPage() {
       } else {
         setIsLoading(false);
       }
+      setStatusMessage('');
     }
   };
 
@@ -244,7 +259,9 @@ our blockchain-based supply chain system.
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="spinner" data-cy="loading-spinner"></div>
-        <div className="ml-4 w-48 h-4 bg-gray-700/60 rounded animate-pulse" data-cy="loading-skeleton"></div>
+        <div className="ml-4 text-gray-400" data-cy="loading-status">
+          {statusMessage || 'Loading product...'}
+        </div>
       </div>
     );
   }
@@ -256,7 +273,7 @@ our blockchain-based supply chain system.
           <div className="text-center py-12">
             <FaQrcode className="text-6xl text-gray-600 mx-auto mb-4" />
             <h2 className="text-2xl font-bold mb-2">Product Not Found</h2>
-            <p className="text-gray-400">Please check the QR code and try again</p>
+            <p className="text-gray-400">{errorMessage || 'Please check the QR code and try again'}</p>
           </div>
         </GlassCard>
       </div>

@@ -6,7 +6,7 @@ import Button from '../UI/Button';
 import Input from '../UI/Input';
 import Modal from '../UI/Modal';
 import { useRouter } from 'next/router';
-import { getCurrentAccount, registerProduct, getFarmerProducts, getProductHistory, getAllProducts, checkRole, harvestProduct, hasContractMock, getContractMock } from '../../utils/blockchain';
+import { getCurrentAccount, registerProduct, getFarmerProducts, getProductHistoryLocal, getAllProducts, checkRole, harvestProduct, hasContractMock, getContractMock, updateProductStatus } from '../../utils/blockchain';
 import { uploadFileToIPFS, uploadJSONToIPFS, mockUploadToIPFS, isPinataConfigured } from '../../utils/ipfs';
 import { CROP_TYPES, PRODUCT_STATUS } from '../../utils/constants';
 import { generateProductQRCode, downloadProductQRCode, formatDate, formatCoordinates } from '../../utils/qrcode';
@@ -183,7 +183,7 @@ const FarmerDashboard: React.FC = () => {
         } else {
           productDetails = await Promise.all(
             (productIds as number[]).map(async (id: number) => {
-              const { product } = await getProductHistory(id);
+              const { product } = await getProductHistoryLocal(id);
               return { ...product, id };
             })
           );
@@ -216,6 +216,20 @@ const FarmerDashboard: React.FC = () => {
       }
     }
     setQrCodes(qrMap);
+  };
+
+  const handleRefreshQRCodes = async () => {
+    if (!products.length) return;
+    setQrError(null);
+    setLoadingQRCode(true);
+    try {
+      await generateQRCodesForProducts(products);
+    } catch (error: any) {
+      console.error('Failed to refresh QR codes:', error);
+      setQrError(error?.message || 'Failed to refresh QR codes');
+    } finally {
+      setLoadingQRCode(false);
+    }
   };
 
   const handleDownloadQR = async (product: any) => {
@@ -449,6 +463,12 @@ const FarmerDashboard: React.FC = () => {
     }
 
     if (isRegisterMocked && !(mockRegister && typeof mockRegister === 'object' && 'error' in mockRegister)) {
+      const expectedHarvestTimestamp = formData.expectedHarvestDate
+        ? Math.floor(new Date(formData.expectedHarvestDate).getTime() / 1000)
+        : 0;
+      const nowTimestamp = Math.floor(Date.now() / 1000);
+      const isHarvested = expectedHarvestTimestamp > 0 && expectedHarvestTimestamp < nowTimestamp;
+
       setIsLoading(true);
       setSuccessMessage('Product registered successfully');
       setCypressSuccess(true);
@@ -460,11 +480,14 @@ const FarmerDashboard: React.FC = () => {
           id: prev.length + 1,
           name: formData.name,
           cropType: formData.cropType,
-          status: 'Planted',
+          status: isHarvested ? 'Harvested' : 'Planted',
           authenticityScore: 100,
           farmer: account || '0x',
           farmLocation: { latitude: formData.latitude || '0', longitude: formData.longitude || '0' },
           plantedDate: Math.floor(new Date(formData.plantedDate).getTime() / 1000),
+          expectedHarvestDate: expectedHarvestTimestamp,
+          harvestDate: isHarvested ? nowTimestamp : 0,
+          organicCertification: formData.certificationHash || '',
           batchIds: []
         },
         ...prev
@@ -521,6 +544,10 @@ const FarmerDashboard: React.FC = () => {
         }
       }
 
+      if (!certHash) {
+        throw new Error('Certificate upload failed. Please try again.');
+      }
+
       // Convert date to timestamp
       const plantedTimestamp = Math.floor(new Date(formData.plantedDate).getTime() / 1000);
       const expectedHarvestTimestamp = formData.expectedHarvestDate
@@ -528,7 +555,7 @@ const FarmerDashboard: React.FC = () => {
         : 0;
 
       // Register product on blockchain
-      await registerProduct(
+      const registration = await registerProduct(
         formData.name,
         formData.cropType,
         certHash,
@@ -538,19 +565,34 @@ const FarmerDashboard: React.FC = () => {
         expectedHarvestTimestamp
       );
 
+      const registeredProductId = Number((registration as any)?.productId || 0);
+      const nowTimestamp = Math.floor(Date.now() / 1000);
+      const isHarvested = expectedHarvestTimestamp > 0 && expectedHarvestTimestamp < nowTimestamp;
+
+      if (isHarvested && !isRegisterMocked && registeredProductId) {
+        try {
+          await updateProductStatus(registeredProductId, PRODUCT_STATUS.indexOf('Harvested'));
+        } catch (error) {
+          console.warn('[RegisterProduct] Failed to auto-mark Harvested:', error);
+        }
+      }
+
       alert('Product registered successfully! Your product is now on the blockchain.');
       setSuccessMessage('Product registered successfully');
       setLastRegisteredName(formData.name);
       setProducts((prev) => [
         {
-          id: prev.length + 1,
+          id: registeredProductId || prev.length + 1,
           name: formData.name,
           cropType: formData.cropType,
-          status: 'Planted',
+          status: isHarvested ? 'Harvested' : 'Planted',
           authenticityScore: 100,
           farmer: account || '0x',
           farmLocation: { latitude: formData.latitude || '0', longitude: formData.longitude || '0' },
           plantedDate: Math.floor(new Date(formData.plantedDate).getTime() / 1000),
+          expectedHarvestDate: expectedHarvestTimestamp,
+          harvestDate: isHarvested ? nowTimestamp : 0,
+          organicCertification: certHash,
           batchIds: []
         },
         ...prev
@@ -758,6 +800,13 @@ const FarmerDashboard: React.FC = () => {
           >
             <FaShieldAlt className="inline mr-2" />
             Manage Roles
+          </Button>
+          <Button
+            onClick={handleRefreshQRCodes}
+            variant="secondary"
+            disabled={loadingQRCode || loadingProducts || !products.length}
+          >
+            {loadingQRCode ? 'Refreshing QR...' : 'Refresh QR Codes'}
           </Button>
           <button
             type="button"

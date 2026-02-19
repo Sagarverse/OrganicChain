@@ -1,9 +1,9 @@
 // Replace with your actual contract address
-export const CONTRACT_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
+export const CONTRACT_ADDRESS = "0xa85233C63b9Ee964Add6F2cffe00Fd84eb32338f";
 
 // Chain configuration
-export const CHAIN_ID = 11155111; // Sepolia
-export const RPC_URL = "https://sepolia.infura.io/v3/YOUR_PROJECT_ID";
+export const CHAIN_ID = 31337; // Localhost Hardhat
+export const RPC_URL = "http://127.0.0.1:8545";
 
 // Contract ABI (partial - key functions)
 export const CONTRACT_ABI = [

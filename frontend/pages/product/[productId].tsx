@@ -11,8 +11,9 @@ const ProductDetailPage: React.FC = () => {
   const [product, setProduct] = useState<any>(null);
   const [batches, setBatches] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [showStatusForm, setShowStatusForm] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [showStatusForm, setShowStatusForm] = useState(false);
   const [newStatus, setNewStatus] = useState('Processing');
 
   const normalizeStatus = (status: any) => {
@@ -30,6 +31,8 @@ const ProductDetailPage: React.FC = () => {
   const loadProduct = async () => {
     if (!productId) return;
     setIsLoading(true);
+    setStatusMessage('Fetching from blockchain...');
+    setErrorMessage('');
     try {
       let productData: any = null;
       let batchData: any[] = [];
@@ -53,10 +56,21 @@ const ProductDetailPage: React.FC = () => {
 
       setProduct(productData);
       setBatches(batchData);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading product detail:', error);
+      const message = String(error?.message || 'Unknown error');
+      if (message.includes('INVALID_PRODUCT_ID')) {
+        setErrorMessage('Invalid product ID');
+      } else if (message.includes('PRODUCT_NOT_FOUND')) {
+        setErrorMessage('Product not found on blockchain');
+      } else if (message.includes('NETWORK_ERROR')) {
+        setErrorMessage('Network error. Unable to reach Polygon RPC.');
+      } else {
+        setErrorMessage('Failed to fetch product from blockchain');
+      }
     } finally {
       setIsLoading(false);
+      setStatusMessage('');
     }
   };
 
@@ -80,6 +94,7 @@ const ProductDetailPage: React.FC = () => {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="spinner"></div>
+        <div className="ml-4 text-gray-400">{statusMessage || 'Loading product...'}</div>
       </div>
     );
   }
@@ -89,7 +104,7 @@ const ProductDetailPage: React.FC = () => {
       <div className="min-h-screen flex items-center justify-center">
         <GlassCard>
           <div className="text-center py-8">
-            <p className="text-gray-400">Product not found</p>
+            <p className="text-gray-400">{errorMessage || 'Product not found'}</p>
           </div>
         </GlassCard>
       </div>

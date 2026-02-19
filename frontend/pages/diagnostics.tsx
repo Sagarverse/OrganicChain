@@ -226,9 +226,7 @@ export default function DiagnosticPage() {
     setIsRunning(false);
   };
 
-  useEffect(() => {
-    runDiagnostics();
-  }, []);
+  // Removed auto-run to prevent continuous refresh and allow scrolling
 
   const getStatusIcon = (status: string) => {
     switch (status) {

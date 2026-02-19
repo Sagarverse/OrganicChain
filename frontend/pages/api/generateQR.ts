@@ -4,6 +4,7 @@ import QRCode from 'qrcode';
 type ResponseData = {
   success?: boolean;
   productId?: number;
+  payload?: string;
   url?: string;
   qrCodeDataUrl?: string;
   qrCodeBase64?: string;
@@ -34,21 +35,20 @@ export default async function handler(
   }
 
   try {
-    const { productId, baseUrl } = req.body;
+    const { productId } = req.body;
 
     if (!productId) {
       return res.status(400).json({ error: 'Product ID is required' });
     }
 
-    // Generate URL for product verification
-    const url = `${baseUrl || 'http://localhost:3000'}/consumer/${productId}`;
+    const payload = String(productId);
 
-    console.log(`[QR API] Generating QR code for product ${productId} with URL: ${url}`);
+    console.log(`[QR API] Generating QR code for product ${productId} with payload: ${payload}`);
 
     // Generate QR code as data URL
     let qrCodeDataUrl: string;
     try {
-      qrCodeDataUrl = await QRCode.toDataURL(url, {
+      qrCodeDataUrl = await QRCode.toDataURL(payload, {
         errorCorrectionLevel: 'H',
         margin: 2,
         color: {
@@ -65,7 +65,7 @@ export default async function handler(
     // Also generate as buffer for download
     let qrCodeBuffer: Buffer;
     try {
-      qrCodeBuffer = (await QRCode.toBuffer(url, {
+      qrCodeBuffer = (await QRCode.toBuffer(payload, {
         errorCorrectionLevel: 'H',
         margin: 2,
         color: {
@@ -86,7 +86,8 @@ export default async function handler(
     return res.status(200).json({
       success: true,
       productId,
-      url,
+      payload,
+      url: payload,
       qrCodeDataUrl,
       qrCodeBase64: base64String,
     });

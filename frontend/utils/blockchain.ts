@@ -3,6 +3,8 @@ import { CONTRACT_ADDRESS, CROP_TYPES } from './constants';
 import ContractArtifact from '../contracts/OrganicSupplyChain.json';
 
 const CONTRACT_ABI = ContractArtifact.abi;
+const POLYGON_RPC_URL = 'http://127.0.0.1:8545';
+const POLYGON_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
 
 declare global {
   interface Window {
@@ -197,7 +199,25 @@ export const registerProduct = async (
   );
 
   const receipt = await tx.wait();
-  return receipt;
+  let productId: number | undefined;
+  try {
+    const iface = new ethers.Interface(CONTRACT_ABI);
+    for (const log of receipt.logs || []) {
+      try {
+        const parsed = iface.parseLog(log);
+        if (parsed?.name === 'ProductRegistered') {
+          productId = Number(parsed.args?.productId);
+          break;
+        }
+      } catch (error) {
+        // Ignore logs that don't match the interface
+      }
+    }
+  } catch (error) {
+    console.warn('[registerProduct] Failed to parse ProductRegistered event', error);
+  }
+
+  return { receipt, productId };
 };
 
 /**
@@ -447,16 +467,16 @@ export const updateBatchLocation = async (
  * Get product history
  */
 export const getProductHistory = async (productId: number) => {
-  const mock = getMock('getProductHistory');
-  if (mock !== undefined) {
-    return mock;
-  }
-
-  const contract = await getContract(false);
-  if (!contract) throw new Error('Contract not available');
-
   try {
-    const [product, batches] = await contract.getProductHistory(productId);
+    const idValue = Number(productId);
+    if (!Number.isFinite(idValue) || idValue <= 0) {
+      throw new Error('INVALID_PRODUCT_ID: Product ID must be a positive number');
+    }
+
+    const provider = new ethers.JsonRpcProvider(POLYGON_RPC_URL);
+    const contract = new Contract(POLYGON_CONTRACT_ADDRESS, CONTRACT_ABI, provider);
+
+    const [product, batches] = await contract.getProductHistory(idValue);
     
     console.log('[BlockchainUtils] Raw product from contract:', {
       id: product.id,
@@ -491,10 +511,59 @@ export const getProductHistory = async (productId: number) => {
     }));
     
     return { product: convertedProduct, batches: convertedBatches };
-  } catch (error) {
+  } catch (error: any) {
     console.error('[BlockchainUtils] Error in getProductHistory:', error);
-    throw error;
+
+    const message = String(error?.message || 'Unknown error');
+    if (message.includes('INVALID_PRODUCT_ID')) {
+      throw error;
+    }
+    if (message.includes('ProductNotFound') || message.includes('productExists') || message.includes('CALL_EXCEPTION')) {
+      throw new Error('PRODUCT_NOT_FOUND: Product not found on blockchain');
+    }
+    if (message.includes('NETWORK_ERROR') || message.includes('could not detect network')) {
+      throw new Error('NETWORK_ERROR: Unable to reach Polygon RPC');
+    }
+
+    throw new Error(`BLOCKCHAIN_ERROR: ${message}`);
   }
+};
+
+/**
+ * Get product history from the connected wallet provider (local/hardhat)
+ */
+export const getProductHistoryLocal = async (productId: number) => {
+  const mockLocal = getMock('getProductHistoryLocal');
+  if (mockLocal !== undefined) {
+    return mockLocal;
+  }
+
+  const mock = getMock('getProductHistory');
+  if (mock !== undefined) {
+    return mock;
+  }
+
+  const idValue = Number(productId);
+  if (!Number.isFinite(idValue) || idValue <= 0) {
+    throw new Error('INVALID_PRODUCT_ID: Product ID must be a positive number');
+  }
+
+  const contract = await getContract(false);
+  if (!contract) throw new Error('Contract not available');
+
+  const [product, batches] = await contract.getProductHistory(idValue);
+  const convertedProduct = normalizeProductData(product);
+  const convertedBatches = (batches || []).map((batch: any) => ({
+    ...batch,
+    batchId: Number(batch.batchId),
+    productId: Number(batch.productId),
+    processedDate: Number(batch.processedDate),
+    quantity: Number(batch.quantity),
+    certificateIds: (batch.certificateIds || []).map((id: any) => Number(id)),
+    status: Number(batch.status || 0)
+  }));
+
+  return { product: convertedProduct, batches: convertedBatches };
 };
 
 /**
@@ -605,7 +674,7 @@ export const getAllProducts = async () => {
   const products = [] as any[];
   for (let i = 1; i <= count; i++) {
     try {
-      const { product } = await getProductHistory(i);
+      const { product } = await getProductHistoryLocal(i);
       products.push({
         ...product,
         id: i,

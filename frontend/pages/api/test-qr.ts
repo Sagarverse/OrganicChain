@@ -16,7 +16,7 @@ export default async function handler(
 ) {
   res.status(200).json({
     status: 'ok',
-    message: 'QR API is working. Use POST to /api/generateQR with {productId, baseUrl}',
+    message: 'QR API is working. Use POST to /api/generateQR with {productId} to encode only the product ID',
     timestamp: new Date().toISOString(),
   });
 }
