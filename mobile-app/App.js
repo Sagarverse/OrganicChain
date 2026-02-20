@@ -8,6 +8,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import HomeScreen from './src/screens/HomeScreen';
 import ScannerScreen from './src/screens/ScannerScreen';
 import ProductScreen from './src/screens/ProductScreen';
+import SettingsScreen from './src/screens/SettingsScreen';
 
 // Import theme
 import { COLORS } from './src/styles/theme';
@@ -60,6 +61,14 @@ export default function App() {
               headerShown: true,
             }}
           />
+           <Stack.Screen
+             name="Settings"
+             component={SettingsScreen}
+             options={{
+               title: 'Settings',
+               headerShown: true,
+             }}
+           />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>

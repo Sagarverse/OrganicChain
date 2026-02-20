@@ -7,8 +7,7 @@ import {
   Alert,
   Linking,
 } from 'react-native';
-import { Camera } from 'expo-camera';
-import { BarCodeScanner } from 'expo-barcode-scanner';
+import { Camera, CameraView } from 'expo-camera';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, SPACING, TYPOGRAPHY } from '../styles/theme';
 import { extractProductId } from '../utils/blockchain';
@@ -29,14 +28,14 @@ export default function ScannerScreen({ navigation }) {
 
   const handleBarCodeScanned = ({ type, data }) => {
     setScanned(true);
-    
+
     try {
       // Extract product ID from QR code data
       const productId = extractProductId(data);
-      
+
       // Navigate to product screen
       navigation.navigate('Product', { productId });
-      
+
       // Reset scanner after 2 seconds
       setTimeout(() => {
         setScanned(false);
@@ -82,13 +81,13 @@ export default function ScannerScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <Camera
+      <CameraView
         style={styles.camera}
-        type={Camera.Constants.Type.back}
-        flashMode={torchOn ? Camera.Constants.FlashMode.torch : Camera.Constants.FlashMode.off}
-        onBarCodeScanned={scanned ? undefined : handleBarCodeScanned}
-        barCodeScannerSettings={{
-          barCodeTypes: [BarCodeScanner.Constants.BarCodeType.qr],
+        facing="back"
+        enableTorch={torchOn}
+        onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+        barcodeScannerSettings={{
+          barcodeTypes: ['qr'],
         }}
       >
         {/* Overlay */}
@@ -114,7 +113,7 @@ export default function ScannerScreen({ navigation }) {
               <View style={[styles.corner, styles.topRight]} />
               <View style={[styles.corner, styles.bottomLeft]} />
               <View style={[styles.corner, styles.bottomRight]} />
-              
+
               {/* Scanning Line Animation (simplified) */}
               {!scanned && (
                 <View style={styles.scanLine} />
@@ -157,7 +156,7 @@ export default function ScannerScreen({ navigation }) {
             </LinearGradient>
           </View>
         </View>
-      </Camera>
+      </CameraView>
     </View>
   );
 }
@@ -176,7 +175,7 @@ const styles = StyleSheet.create({
   overlay: {
     flex: 1,
   },
-  
+
   // Top Section
   topSection: {
     flex: 1,
@@ -192,7 +191,7 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     textAlign: 'center',
   },
-  
+
   // Middle Section (Scan Frame)
   middleSection: {
     flexDirection: 'row',
@@ -247,7 +246,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primaryLightest,
     opacity: 0.8,
   },
-  
+
   // Bottom Section
   bottomSection: {
     flex: 1,
@@ -280,7 +279,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: SPACING.xl,
   },
-  
+
   // Permission Messages
   messageContainer: {
     padding: SPACING.xl,

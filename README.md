@@ -1,11 +1,13 @@
-npx hardhat run scripts/deploy.ts --network localhost
+cd blockchain && npm run node
 
-
-cd /Users/sagarm/Workstation/Blockchain/frontend && npm run dev
-
+cd frontend && npm run dev
 
 #sagar
 
+cd /Users/sagarm/Workstation/Blockchain
+cd blockchain
+npx hardhat compile
+npx hardhat run scripts/deploy.ts --network localhost
 
 
 

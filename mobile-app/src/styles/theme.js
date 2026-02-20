@@ -1,31 +1,31 @@
 export const COLORS = {
-  // Primary palette (dark green theme)
-  primaryDark: '#1a3f2c',
-  primaryMid: '#2d5a3a',
-  primaryLight: '#40826d',
-  primaryLighter: '#66a884',
-  primaryLightest: '#99cbb7',
-  
+  // Primary palette (modern blue/green theme matching web)
+  primaryDark: '#0f1419',
+  primaryMid: '#1a1f2e',
+  primaryLight: '#252d3d',
+  primaryLighter: '#2f3747',
+  primaryLightest: '#10b981',
+
   // Background
-  background: '#0a100e',
-  backgroundGradientStart: '#0a100e',
-  backgroundGradientEnd: '#1a3f2c',
-  
+  background: '#0f1419',
+  backgroundGradientStart: '#0f1419',
+  backgroundGradientEnd: '#1a2332',
+
   // Glass effect
-  glassBackground: 'rgba(26, 63, 44, 0.2)',
-  glassBorder: 'rgba(255, 255, 255, 0.1)',
-  
+  glassBackground: 'rgba(26, 31, 46, 0.3)',
+  glassBorder: 'rgba(255, 255, 255, 0.08)',
+
   // Text
-  textPrimary: '#ffffff',
-  textSecondary: 'rgba(255, 255, 255, 0.7)',
-  textTertiary: 'rgba(255, 255, 255, 0.5)',
-  
+  textPrimary: '#f9fafb',
+  textSecondary: '#d1d5db',
+  textTertiary: '#9ca3af',
+
   // Status colors
   success: '#4ade80',
   warning: '#fbbf24',
   error: '#ef4444',
   info: '#3b82f6',
-  
+
   // Authenticity score colors
   scoreExcellent: '#10b981',
   scoreGood: '#84cc16',

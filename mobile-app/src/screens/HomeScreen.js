@@ -19,6 +19,14 @@ export default function HomeScreen({ navigation }) {
       colors={[COLORS.backgroundGradientStart, COLORS.backgroundGradientEnd]}
       style={styles.container}
     >
+      {/* Settings Button */}
+      <TouchableOpacity
+        style={{ position: 'absolute', top: 48, right: 24, zIndex: 10 }}
+        onPress={() => navigation.navigate('Settings')}
+        activeOpacity={0.7}
+      >
+        <Text style={{ fontSize: 28, color: COLORS.textPrimary }}>⚙️</Text>
+      </TouchableOpacity>
       <SafeAreaView style={styles.safeArea}>
         <ScrollView contentContainerStyle={styles.scrollContent}>
           {/* Hero Section */}
