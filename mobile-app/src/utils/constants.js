@@ -127,4 +127,4 @@ export const IPFS_GATEWAY = "https://gateway.pinata.cloud/ipfs/";
 // App Configuration
 export const APP_NAME = "OrganicChain";
 export const APP_VERSION = "1.0.0";
-export const WEB_URL = "https://veriorganic.vercel.app";
+export const WEB_URL = "http://10.1.37.128:3000";

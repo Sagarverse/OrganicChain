@@ -69,6 +69,14 @@ export const uploadJSONToIPFS = async (jsonData: any): Promise<string> => {
  * Get IPFS file URL
  */
 export const getIPFSUrl = (hash: string): string => {
+  if (!hash) return '';
+  if (hash.startsWith('mock://')) {
+    const data = hash.substring(7);
+    if (data.startsWith('%7B') || data.startsWith('{')) {
+      return `data:application/json;charset=utf-8,${data}`;
+    }
+    return `data:text/plain;charset=utf-8,Mock Document Content:%0A${data}`;
+  }
   return `${PINATA_GATEWAY_URL}${hash}`;
 };
 
@@ -88,13 +96,13 @@ export const fetchFromIPFS = async (hash: string): Promise<any> => {
 /**
  * Mock upload for demo purposes (when Pinata keys not configured)
  */
-export const mockUploadToIPFS = async (fileName: string): Promise<string> => {
+export const mockUploadToIPFS = async (data: string): Promise<string> => {
   // Simulate API call delay
   await new Promise(resolve => setTimeout(resolve, 1000));
-  
-  // Return a mock IPFS hash
-  const mockHash = `Qm${Math.random().toString(36).substring(2, 15)}${Math.random().toString(36).substring(2, 15)}`;
-  console.log(`Mock IPFS upload: ${fileName} -> ${mockHash}`);
+
+  // Encode the data as a URI component to store it in the mock hash
+  const mockHash = `mock://${encodeURIComponent(data)}`;
+  console.log(`Mock IPFS upload: generated mock URI with data length ${data.length}`);
   return mockHash;
 };
 

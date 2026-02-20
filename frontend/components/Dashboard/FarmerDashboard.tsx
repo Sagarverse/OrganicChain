@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { FaSeedling, FaPlus, FaBox, FaFilter, FaQrcode, FaDownload, FaMapMarkerAlt, FaCalendar, FaShieldAlt, FaLeaf } from 'react-icons/fa';
+import { FaSeedling, FaPlus, FaBox, FaFilter, FaQrcode, FaDownload, FaMapMarkerAlt, FaCalendar, FaShieldAlt, FaLeaf, FaCertificate } from 'react-icons/fa';
 import GlassCard from '../Layout/GlassCard';
 import Button from '../UI/Button';
 import Input from '../UI/Input';
 import Modal from '../UI/Modal';
 import { useRouter } from 'next/router';
-import { getCurrentAccount, registerProduct, getFarmerProducts, getProductHistoryLocal, getAllProducts, checkRole, harvestProduct, hasContractMock, getContractMock, updateProductStatus } from '../../utils/blockchain';
+import { getCurrentAccount, registerProduct, getFarmerProducts, getProductHistoryLocal, getAllProducts, checkRole, harvestProduct, hasContractMock, getContractMock, updateProductStatus, addCertificate } from '../../utils/blockchain';
 import { uploadFileToIPFS, uploadJSONToIPFS, mockUploadToIPFS, isPinataConfigured } from '../../utils/ipfs';
 import { CROP_TYPES, PRODUCT_STATUS } from '../../utils/constants';
 import { generateProductQRCode, downloadProductQRCode, formatDate, formatCoordinates } from '../../utils/qrcode';
@@ -37,6 +37,12 @@ const FarmerDashboard: React.FC = () => {
   const [loadingQRCode, setLoadingQRCode] = useState(false);
   const [downloadingQRCode, setDownloadingQRCode] = useState(false);
   const [qrError, setQrError] = useState<string | null>(null);
+  const [certModalOpen, setCertModalOpen] = useState(false);
+  const [certData, setCertData] = useState({
+    issuer: '',
+    validUntil: '',
+  });
+  const [uploadingCert, setUploadingCert] = useState(false);
   const skipNextLoadRef = useRef(false);
   const loadGenerationRef = useRef(0);
   const [formData, setFormData] = useState({
@@ -55,16 +61,16 @@ const FarmerDashboard: React.FC = () => {
 
   useEffect(() => {
     loadData();
-    
+
     // Listen for account changes
     if (typeof window !== 'undefined' && window.ethereum) {
       const handleAccountsChanged = () => {
         console.log('Account changed, reloading...');
         loadData();
       };
-      
+
       window.ethereum.on('accountsChanged', handleAccountsChanged);
-      
+
       return () => {
         window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
       };
@@ -237,7 +243,7 @@ const FarmerDashboard: React.FC = () => {
       setQrError('Invalid product: missing product ID');
       return;
     }
-    
+
     setDownloadingQRCode(true);
     setQrError(null);
     try {
@@ -256,7 +262,7 @@ const FarmerDashboard: React.FC = () => {
 
   const getCurrentLocation = () => {
     setLoadingLocation(true);
-    
+
     if (!navigator.geolocation) {
       alert('❌ Geolocation is not supported by your browser');
       setLoadingLocation(false);
@@ -267,10 +273,10 @@ const FarmerDashboard: React.FC = () => {
       (position) => {
         const latitude = position.coords.latitude.toFixed(6);
         const longitude = position.coords.longitude.toFixed(6);
-        setFormData({ 
-          ...formData, 
-          latitude, 
-          longitude 
+        setFormData({
+          ...formData,
+          latitude,
+          longitude
         });
         setLoadingLocation(false);
         alert(`✅ Location captured!\nLatitude: ${latitude}\nLongitude: ${longitude}`);
@@ -278,7 +284,7 @@ const FarmerDashboard: React.FC = () => {
       (error) => {
         console.error('Error getting location:', error);
         let errorMsg = '❌ Could not get your location. ';
-        switch(error.code) {
+        switch (error.code) {
           case error.PERMISSION_DENIED:
             errorMsg += 'Please enable location permissions in your browser.';
             break;
@@ -312,7 +318,7 @@ const FarmerDashboard: React.FC = () => {
     if (!quantityStr) return;
 
     const notes = prompt('Add harvest notes (optional):', '') || '';
-    
+
     const quantity = parseInt(quantityStr);
     if (isNaN(quantity) || quantity <= 0) {
       alert('Please enter a valid quantity');
@@ -322,22 +328,22 @@ const FarmerDashboard: React.FC = () => {
     try {
       setIsLoading(true);
       console.log('[Harvest] Starting harvest for product:', product.id);
-      
+
       const receipt = await harvestProduct(Number(product.id), quantity, notes);
       console.log('[Harvest] Transaction confirmed, receipt:', receipt);
-      
+
       alert(`✅ Product harvested successfully!\n\nProduct: ${product.name}\nQuantity: ${quantity} kg\n\nThe product is now ready for processing.`);
-      
+
       // Wait for blockchain to settle, then reload with retries
       await new Promise(resolve => setTimeout(resolve, 2000));
-      
+
       console.log('[Harvest] Reloading product data...');
       await loadProducts(account, showAllProducts);
-      
+
       console.log('[Harvest] Product data reloaded successfully');
     } catch (error: any) {
       console.error('[Harvest] Error:', error);
-      
+
       let errorMessage = `Failed to harvest product`;
       if (error.message?.includes('0x')) {
         errorMessage += `: ${error.data || error.message}`;
@@ -347,7 +353,7 @@ const FarmerDashboard: React.FC = () => {
       if (error.reason) {
         errorMessage += ` (${error.reason})`;
       }
-      
+
       alert(errorMessage);
     } finally {
       setIsLoading(false);
@@ -359,9 +365,9 @@ const FarmerDashboard: React.FC = () => {
     setShowQRModal(true);
     setQrError(null);
     setLoadingQRCode(true);
-    
+
     console.log('[QR Debug] Requesting QR code for product:', product.id);
-    
+
     try {
       // Generate QR code if not already cached
       if (!qrCodes[Number(product.id)]) {
@@ -454,7 +460,7 @@ const FarmerDashboard: React.FC = () => {
     const mockRegister = getContractMock('registerProduct');
     const isCypressRun = typeof window !== 'undefined' && Boolean((window as any).Cypress);
     const isRegisterMocked = mockRegister !== undefined || isCypressRun;
-    
+
     // Validate form before submitting
     if (!validateForm()) {
       setIsLoading(true);
@@ -511,7 +517,7 @@ const FarmerDashboard: React.FC = () => {
       setIsLoading(false);
       return;
     }
-    
+
     setIsLoading(true);
 
     try {
@@ -525,7 +531,7 @@ const FarmerDashboard: React.FC = () => {
         expectedHarvestDate: formData.expectedHarvestDate,
         issueDate: new Date().toISOString()
       };
-      
+
       // Upload certificate to IPFS
       let certHash = '';
       if (formData.certificationHash.trim()) {
@@ -598,21 +604,21 @@ const FarmerDashboard: React.FC = () => {
         ...prev
       ]);
       setIsModalOpen(false);
-      setFormData({ 
-        name: '', 
-        cropType: 0, 
+      setFormData({
+        name: '',
+        cropType: 0,
         certificationHash: '',
         description: '',
         farmName: '',
         certificationBody: '',
-        latitude: '', 
-        longitude: '', 
+        latitude: '',
+        longitude: '',
         plantedDate: '',
         expectedHarvestDate: '',
         estimatedQuantity: ''
       });
       setCertificateFile(null);
-      
+
       // Reload products unless mocked (tests rely on local state updates)
       if (account && !isRegisterMocked) {
         await loadProducts(account, showAllProducts);
@@ -621,9 +627,9 @@ const FarmerDashboard: React.FC = () => {
       console.error('Error registering product:', error);
 
       setFormError('error');
-      
+
       let errorMessage = 'Failed to register product. ';
-      
+
       // Check for UnauthorizedAccess error (0x344fd586)
       if (error.data === '0x344fd586' || error.message?.includes('0x344fd586')) {
         errorMessage = '🚫 AUTHORIZATION ERROR\n\n';
@@ -658,7 +664,7 @@ const FarmerDashboard: React.FC = () => {
       } else if (error.message) {
         errorMessage += error.message;
       }
-      
+
       alert(errorMessage);
     } finally {
       const elapsed = Date.now() - loadingStart;
@@ -668,6 +674,87 @@ const FarmerDashboard: React.FC = () => {
       } else {
         setIsLoading(false);
       }
+    }
+  };
+
+  const handleUploadCertificate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedProduct || !account) return;
+
+    if (!certData.issuer.trim() || !certData.validUntil) {
+      alert('Please fill in all certificate details');
+      return;
+    }
+
+    setUploadingCert(true);
+    setFormError('');
+
+    try {
+      let documentHash = '';
+
+      if (certificateFile) {
+        if (isPinataConfigured()) {
+          documentHash = await uploadFileToIPFS(certificateFile);
+        } else {
+          documentHash = await mockUploadToIPFS(certificateFile.name);
+        }
+      } else {
+        const mockCertData = {
+          issuer: certData.issuer,
+          validUntil: certData.validUntil,
+          productName: selectedProduct.name,
+          productId: selectedProduct.id,
+          issueDate: new Date().toISOString()
+        };
+
+        if (isPinataConfigured()) {
+          documentHash = await uploadJSONToIPFS(mockCertData);
+        } else {
+          documentHash = await mockUploadToIPFS(JSON.stringify(mockCertData));
+        }
+      }
+
+      if (!documentHash) {
+        throw new Error('Failed to upload certificate document');
+      }
+
+      const validUntilTimestamp = Math.floor(new Date(certData.validUntil).getTime() / 1000);
+
+      const receipt = await addCertificate(
+        Number(selectedProduct.id),
+        certData.issuer,
+        validUntilTimestamp,
+        documentHash
+      );
+
+      console.log('[Certificate Upload] Transaction confirmed:', receipt);
+
+      alert('Certificate uploaded successfully!');
+
+      setCertModalOpen(false);
+      setCertData({ issuer: '', validUntil: '' });
+      setCertificateFile(null);
+
+      // Reload product data
+      await loadProducts(account, showAllProducts);
+
+    } catch (error: any) {
+      console.error('[Certificate Upload] Error:', error);
+      let errorMessage = 'Failed to upload certificate. ';
+
+      if (error.code === 4001 || error.message?.includes('user rejected')) {
+        errorMessage += 'Transaction was rejected.';
+      } else if (error.message?.includes('insufficient funds')) {
+        errorMessage += 'Insufficient ETH for gas fees.';
+      } else if (error.reason) {
+        errorMessage += error.reason;
+      } else if (error.message) {
+        errorMessage += error.message;
+      }
+
+      alert(errorMessage);
+    } finally {
+      setUploadingCert(false);
     }
   };
 
@@ -684,15 +771,15 @@ const FarmerDashboard: React.FC = () => {
                 Please connect your MetaMask wallet to use the Farmer Dashboard.
               </p>
               <p className="text-gray-400 text-sm mb-4">
-                Make sure you're connected to <span className="font-mono text-orange-300">Hardhat Local</span> network (Chain ID: 31337) 
+                Make sure you're connected to <span className="font-mono text-orange-300">Hardhat Local</span> network (Chain ID: 31337)
                 and using an account with <span className="font-mono text-orange-300">FARMER_ROLE</span>.
               </p>
               <div className="flex gap-3">
                 <Button variant="secondary">
                   Connect Wallet
                 </Button>
-                <a 
-                  href="/api/setup-help" 
+                <a
+                  href="/api/setup-help"
                   target="_blank"
                   className="text-orange-400 hover:text-orange-300 text-sm underline mt-3 inline-flex items-center gap-1"
                 >
@@ -712,7 +799,7 @@ const FarmerDashboard: React.FC = () => {
             <div className="flex-1">
               <h3 className="text-red-300 font-bold text-lg mb-3">Missing FARMER_ROLE Permission</h3>
               <p className="text-gray-300 text-sm mb-4">
-                Your account <span className="font-mono text-red-300">{account.slice(0, 6)}...{account.slice(-4)}</span> does not have FARMER_ROLE. 
+                Your account <span className="font-mono text-red-300">{account.slice(0, 6)}...{account.slice(-4)}</span> does not have FARMER_ROLE.
                 You won't be able to register products.
               </p>
               <div className="space-y-3 mb-4">
@@ -732,14 +819,14 @@ const FarmerDashboard: React.FC = () => {
                 </div>
               </div>
               <div className="flex gap-3">
-                <Button 
+                <Button
                   onClick={() => router.push('/admin/roles')}
                   variant="secondary"
                 >
                   <FaShieldAlt className="inline mr-2" />
                   Go to Role Management
                 </Button>
-                <Button 
+                <Button
                   onClick={async () => {
                     if (account) {
                       console.log('Refreshing role status...');
@@ -794,7 +881,7 @@ const FarmerDashboard: React.FC = () => {
           )}
         </div>
         <div className="flex gap-3 flex-wrap">
-          <Button 
+          <Button
             onClick={() => router.push('/admin/roles')}
             variant="secondary"
           >
@@ -815,14 +902,14 @@ const FarmerDashboard: React.FC = () => {
           >
             Menu
           </button>
-          <Button 
+          <Button
             onClick={() => setShowAllProducts(!showAllProducts)}
             variant="secondary"
           >
             <FaFilter className="inline mr-2" />
             {showAllProducts ? 'All Products' : 'My Products'}
           </Button>
-          <Button 
+          <Button
             onClick={() => {
               setFormError('');
               setCypressSuccess(false);
@@ -909,9 +996,9 @@ const FarmerDashboard: React.FC = () => {
               <p className="text-3xl font-bold">
                 {products.length > 0
                   ? Math.round(
-                      products.reduce((sum, p) => sum + Number(p.authenticityScore), 0) /
-                        products.length
-                    )
+                    products.reduce((sum, p) => sum + Number(p.authenticityScore), 0) /
+                    products.length
+                  )
                   : 0}
               </p>
             </div>
@@ -980,13 +1067,13 @@ const FarmerDashboard: React.FC = () => {
                     {getStatusLabel(product.status)}
                   </span>
                 </div>
-                
+
                 {/* QR Code Display */}
                 {qrCodes[Number(product.id)] && (
                   <div className="mb-4 flex justify-center">
                     <div className="relative group">
-                      <img 
-                        src={qrCodes[Number(product.id)]} 
+                      <img
+                        src={qrCodes[Number(product.id)]}
                         alt={`QR Code for ${product.name}`}
                         className="w-32 h-32 border-2 border-primary-400 rounded-lg cursor-pointer hover:border-primary-300 transition-colors"
                         onClick={() => handleViewQR(product)}
@@ -997,7 +1084,7 @@ const FarmerDashboard: React.FC = () => {
                     </div>
                   </div>
                 )}
-                
+
                 <div className="space-y-2 text-sm">
                   <p>
                     <span className="text-gray-400">Type:</span>{' '}
@@ -1036,7 +1123,7 @@ const FarmerDashboard: React.FC = () => {
                 <div className="mt-4 pt-4 border-t border-gray-700">
                   {/* Harvest Button - Only shown for Planted products by the farmer */}
                   {Number(product.status) === 0 && product.farmer?.toLowerCase() === account?.toLowerCase() && (
-                    <Button 
+                    <Button
                       onClick={() => handleHarvestProduct(product)}
                       disabled={isLoading}
                       variant="primary"
@@ -1046,9 +1133,25 @@ const FarmerDashboard: React.FC = () => {
                       {isLoading ? 'Harvesting...' : '🌾 Harvest Product'}
                     </Button>
                   )}
-                  
+
+                  {/* Upload Certificate Button - Only shown for farmer */}
+                  {product.farmer?.toLowerCase() === account?.toLowerCase() && (
+                    <Button
+                      onClick={() => {
+                        setSelectedProduct(product);
+                        setCertModalOpen(true);
+                      }}
+                      disabled={isLoading}
+                      variant="secondary"
+                      className="w-full mb-2 bg-blue-900/30 hover:bg-blue-800/40 border-blue-500/50"
+                    >
+                      <FaShieldAlt className="inline mr-2" />
+                      Upload Certificate
+                    </Button>
+                  )}
+
                   <div className="flex gap-2">
-                    <Button 
+                    <Button
                       onClick={() => handleViewQR(product)}
                       variant="secondary"
                       className="flex-1"
@@ -1056,7 +1159,7 @@ const FarmerDashboard: React.FC = () => {
                       <FaQrcode className="inline mr-1" />
                       QR Code
                     </Button>
-                    <Button 
+                    <Button
                       onClick={() => router.push(`/product/${product.id}`)}
                       variant="primary"
                       className="flex-1"
@@ -1098,7 +1201,7 @@ const FarmerDashboard: React.FC = () => {
             <h3 className="text-lg font-semibold text-primary-400 border-b border-gray-700 pb-2">
               📋 Basic Information
             </h3>
-            
+
             <Input
               label="Product Name *"
               name="productName"
@@ -1163,7 +1266,7 @@ const FarmerDashboard: React.FC = () => {
             <h3 className="text-lg font-semibold text-primary-400 border-b border-gray-700 pb-2">
               🏡 Farm Information
             </h3>
-            
+
             <Input
               label="Farm Name"
               placeholder="e.g., Green Valley Organic Farm"
@@ -1201,7 +1304,7 @@ const FarmerDashboard: React.FC = () => {
                   <p className="text-xs text-gray-500 mt-1">East/West coordinate</p>
                 </div>
               </div>
-              <Button 
+              <Button
                 onClick={getCurrentLocation}
                 disabled={loadingLocation}
                 variant="secondary"
@@ -1220,7 +1323,7 @@ const FarmerDashboard: React.FC = () => {
             <h3 className="text-lg font-semibold text-primary-400 border-b border-gray-700 pb-2">
               🏅 Organic Certification
             </h3>
-            
+
             <Input
               label="Certification Body"
               placeholder="e.g., USDA Organic, EU Organic, etc."
@@ -1240,7 +1343,7 @@ const FarmerDashboard: React.FC = () => {
               />
               <p className="text-xs text-gray-500 mt-1">If not provided, a JSON certificate will be generated.</p>
             </div>
-            
+
             <div className="bg-blue-900/20 border border-blue-600/30 rounded-lg p-3">
               <p className="text-sm text-blue-300">
                 📄 Certificate will be uploaded to IPFS during registration (mock upload if Pinata is not configured).
@@ -1253,7 +1356,7 @@ const FarmerDashboard: React.FC = () => {
             <h3 className="text-lg font-semibold text-primary-400 border-b border-gray-700 pb-2">
               📅 Planting Schedule
             </h3>
-            
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Input
@@ -1330,13 +1433,13 @@ const FarmerDashboard: React.FC = () => {
               <p className="text-gray-400">Generating QR code...</p>
             </div>
           )}
-          
+
           {qrError && !loadingQRCode && (
             <div className="p-4 bg-red-500/20 border border-red-500/50 rounded-lg">
               <p className="text-red-400 text-sm">
                 <span className="font-semibold">Error: </span>{qrError}
               </p>
-              <button 
+              <button
                 onClick={() => handleViewQR(selectedProduct)}
                 className="mt-3 text-xs bg-red-500/30 hover:bg-red-500/40 px-3 py-1 rounded transition-colors"
               >
@@ -1344,11 +1447,11 @@ const FarmerDashboard: React.FC = () => {
               </button>
             </div>
           )}
-          
+
           {!loadingQRCode && !qrError && selectedProduct && qrCodes[Number(selectedProduct.id)] && (
             <div className="flex flex-col items-center">
-              <img 
-                src={qrCodes[Number(selectedProduct.id)]} 
+              <img
+                src={qrCodes[Number(selectedProduct.id)]}
                 alt={`QR Code for ${selectedProduct.name}`}
                 className="w-64 h-64 border-4 border-primary-400 rounded-lg shadow-lg"
               />
@@ -1362,7 +1465,7 @@ const FarmerDashboard: React.FC = () => {
                 Verification URL: {typeof window !== 'undefined' ? `${window.location.origin}/consumer/${selectedProduct.id}` : 'localhost:3000'}
               </p>
               <div className="mt-6 w-full">
-                <Button 
+                <Button
                   onClick={() => handleDownloadQR(selectedProduct)}
                   fullWidth
                   variant="primary"
@@ -1380,12 +1483,75 @@ const FarmerDashboard: React.FC = () => {
                     </>
                   )}
                 </Button>
+                {/* Inject Upload Certificate Button here */}
+                <Button
+                  onClick={() => setCertModalOpen(true)}
+                  fullWidth
+                  variant="secondary"
+                  className="mt-2"
+                >
+                  <FaCertificate className="inline mr-2" />
+                  Upload Certificate
+                </Button>
               </div>
             </div>
           )}
         </div>
       </Modal>
-    </div>
+
+      {/* Upload Certificate Modal */}
+      < Modal
+        isOpen={certModalOpen}
+        onClose={() => setCertModalOpen(false)}
+        title={`Upload Certificate - ${selectedProduct?.name}`}
+      >
+        <form onSubmit={handleUploadCertificate} className="space-y-4">
+          <Input
+            label="Issuer *"
+            value={certData.issuer}
+            onChange={(e) => setCertData((prev) => ({ ...prev, issuer: e.target.value }))}
+            placeholder="e.g., USDA Organic, EU Organic"
+            required
+          />
+
+          <Input
+            label="Valid Until *"
+            type="date"
+            value={certData.validUntil}
+            onChange={(e) => setCertData((prev) => ({ ...prev, validUntil: e.target.value }))}
+            required
+          />
+
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Upload Document (PDF/Image)
+            </label>
+            <input
+              type="file"
+              accept=".pdf,image/*"
+              className="w-full px-4 py-2 bg-dark-200 border border-dark-300 rounded-lg text-white focus:outline-none focus:border-primary-400"
+              onChange={(e) => setCertificateFile(e.target.files?.[0] || null)}
+            />
+            <p className="text-xs text-gray-500 mt-1">If not provided, a JSON certificate will be generated.</p>
+          </div>
+
+          <div className="flex gap-3 pt-4 border-t border-gray-700">
+            <Button type="submit" disabled={uploadingCert} className="flex-1">
+              {uploadingCert ? 'Uploading...' : 'Upload Certificate'}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setCertModalOpen(false)}
+              disabled={uploadingCert}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+          </div>
+        </form>
+      </Modal >
+    </div >
   );
 };
 

@@ -54,7 +54,7 @@ export default function ConsumerProductPage() {
       setStatusMessage('Fetching from blockchain...');
       setErrorMessage('');
       const id = parseInt(productId as string);
-      
+
       // Get product history
       const { product: productData, batches: batchData } = await getProductHistory(id);
       const normalizedProduct = {
@@ -141,10 +141,10 @@ export default function ConsumerProductPage() {
 
   const calculateTravelDistance = () => {
     if (!product || !batches.length) return 0;
-    
+
     const farmLat = parseFloat(product.farmLocation?.latitude || '0');
     const farmLng = parseFloat(product.farmLocation?.longitude || '0');
-    
+
     let totalDistance = 0;
     batches.forEach((batch: any) => {
       if (batch.locationHistory && batch.locationHistory.length > 0) {
@@ -154,7 +154,7 @@ export default function ConsumerProductPage() {
         totalDistance += calculateDistance(farmLat, farmLng, lat, lng);
       }
     });
-    
+
     return totalDistance;
   };
 
@@ -228,17 +228,17 @@ our blockchain-based supply chain system.
   // Share to social media
   const shareToSocial = (platform: 'twitter' | 'facebook') => {
     if (typeof window === 'undefined') return;
-    
+
     const url = `${window.location.origin}/consumer/${product.id}`;
     const text = `Check out this verified organic product: ${product.name}`;
-    
+
     let shareUrl = '';
     if (platform === 'twitter') {
       shareUrl = `https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`;
     } else if (platform === 'facebook') {
       shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
     }
-    
+
     if (shareUrl) {
       window.open(shareUrl, '_blank', 'width=600,height=400');
     }
@@ -375,7 +375,7 @@ our blockchain-based supply chain system.
               </div>
               <div className="space-y-4">
                 {batches.map((batch: any, index: number) => (
-                  <div 
+                  <div
                     key={index}
                     className="p-4 bg-primary-500/10 border border-primary-500/30 rounded-lg"
                   >
@@ -390,7 +390,7 @@ our blockchain-based supply chain system.
                         ✓ Processed
                       </span>
                     </div>
-                    
+
                     <div className="grid grid-cols-2 gap-3 text-sm" data-cy="sensor-data">
                       <div>
                         <p className="text-gray-400 text-xs">Quantity</p>
@@ -422,7 +422,7 @@ our blockchain-based supply chain system.
                         </>
                       )}
                     </div>
-                    
+
                     {batch.packagingDetails && (
                       <div className="mt-3 pt-3 border-t border-gray-700">
                         <p className="text-gray-400 text-xs mb-1 flex items-center gap-1">
@@ -461,7 +461,7 @@ our blockchain-based supply chain system.
             distanceKm={calculateTravelDistance()}
             hasOrganicCert={batches.some((b: any) => b.certificateIds && b.certificateIds.length > 0)}
             batches={batches}
-            storageDays={product.harvestDate > 0 
+            storageDays={product.harvestDate > 0
               ? Math.floor((Date.now() / 1000 - Number(product.harvestDate)) / (24 * 60 * 60))
               : 0
             }
@@ -589,8 +589,8 @@ our blockchain-based supply chain system.
               </Button>
             </div>
             <div className="mt-4 flex gap-3">
-              <Button 
-                variant="primary" 
+              <Button
+                variant="primary"
                 data-cy="download-report-btn"
                 onClick={generateReport}
                 disabled={reportGenerating}
@@ -695,11 +695,10 @@ our blockchain-based supply chain system.
                       <button
                         key={idx}
                         onClick={() => setSelectedBatchIndex(idx)}
-                        className={`px-3 py-1 rounded text-xs font-semibold transition-colors ${
-                          selectedBatchIndex === idx
-                            ? 'bg-primary-500 text-white'
-                            : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                        }`}
+                        className={`px-3 py-1 rounded text-xs font-semibold transition-colors ${selectedBatchIndex === idx
+                          ? 'bg-primary-500 text-white'
+                          : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                          }`}
                       >
                         Batch {idx + 1}
                       </button>
@@ -717,54 +716,59 @@ our blockchain-based supply chain system.
       {/* Certificate Modal */}
       <Modal isOpen={isCertificateOpen} onClose={() => setIsCertificateOpen(false)} title="Certificate Details">
         <div className="space-y-4">
-          {batches.some((b: any) => b.certificateIds && b.certificateIds.length > 0) ? (
-            <>
-              {batches.map((batch: any, batchidx: number) =>
-                batch.certificateIds?.map((certId: any, certIdx: number) => {
-                  const cert = certificateDetails[Number(certId)];
-                  return (
-                    <div
-                      key={`${batchidx}-${certIdx}`}
-                      className="p-4 bg-green-500/10 border border-green-500/30 rounded-lg"
-                    >
-                      <div className="flex items-start justify-between mb-3">
-                        <div>
-                          <p className="font-semibold text-green-400">
-                            ✓ Organic Certification #{Number(certId)}
-                          </p>
-                          <p className="text-sm text-gray-400">Issuer: {cert?.issuer || 'Unknown Issuer'}</p>
-                          {cert?.validUntil && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              Valid until {new Date(Number(cert.validUntil) * 1000).toLocaleDateString()}
-                            </p>
-                          )}
-                        </div>
-                        <span className="inline-flex items-center px-2 py-1 text-xs bg-green-500/20 text-green-400 rounded">
-                          Approved
-                        </span>
-                      </div>
-                      <div className="text-xs text-gray-400 mb-3">
-                        Status: Primary Organic Certification
-                      </div>
-                      {cert?.documentHash ? (
-                        <a
-                          href={getIPFSUrl(cert.documentHash)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-block text-primary-300 hover:text-primary-200 underline text-sm"
-                        >
-                          View Document on IPFS
-                        </a>
-                      ) : (
-                        <span className="text-xs text-gray-500">No document available</span>
+          {Object.keys(certificateDetails).length > 0 ? (
+            Object.entries(certificateDetails).map(([certId, cert]) => {
+              // Ensure it's approved
+              if (!cert.approved) return null;
+
+              const certHash = cert?.documentHash;
+              const certIssuer = cert?.issuer || 'Unknown Issuer';
+              return (
+                <div
+                  key={certId}
+                  className="p-4 bg-green-500/10 border border-green-500/30 rounded-lg"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <p className="font-semibold text-green-400">
+                        ✓ Organic Certification #{Number(certId)}
+                      </p>
+                      <p className="text-sm text-gray-400">Issuer: {certIssuer}</p>
+                      {cert?.validUntil && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Valid until {new Date(Number(cert.validUntil) * 1000).toLocaleDateString()}
+                        </p>
                       )}
                     </div>
-                  );
-                })
-              )}
-            </>
+                    <span className="inline-flex items-center px-2 py-1 text-xs bg-green-500/20 text-green-400 rounded">
+                      Approved
+                    </span>
+                  </div>
+                  <div className="pt-3 border-t border-green-500/20">
+                    {certHash ? (
+                      <a
+                        href={getIPFSUrl(certHash)}
+                        target={certHash.startsWith('mock://') ? undefined : "_blank"}
+                        rel="noopener noreferrer"
+                        download={certHash.startsWith('mock://') ? `certificate-${certId}.json` : undefined}
+                        className="inline-flex items-center text-sm font-medium text-primary-300 hover:text-primary-200"
+                        data-cy="ipfs-link"
+                      >
+                        <FaCertificate className="mr-2" />
+                        View Official Document
+                      </a>
+                    ) : (
+                      <span className="text-sm text-gray-500 italic">No document attached</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })
           ) : (
-            <div className="text-sm text-gray-500">No certificates available for this product.</div>
+            <div className="text-center p-6 bg-gray-800/50 rounded-lg border border-gray-700">
+              <FaCertificate className="text-4xl text-gray-600 mx-auto mb-3" />
+              <p className="text-gray-400">No verified organic certificates found for this product.</p>
+            </div>
           )}
         </div>
       </Modal>
@@ -775,13 +779,13 @@ our blockchain-based supply chain system.
           <div>
             <p className="text-sm text-gray-400 mb-3">Share this product verification on social media:</p>
             <div className="flex gap-3">
-              <Button 
-                variant="secondary" 
+              <Button
+                variant="secondary"
                 onClick={() => shareToSocial('twitter')}
               >
                 Share on Twitter
               </Button>
-              <Button 
+              <Button
                 variant="secondary"
                 onClick={() => shareToSocial('facebook')}
               >
@@ -789,12 +793,12 @@ our blockchain-based supply chain system.
               </Button>
             </div>
           </div>
-          
+
           <div className="border-t border-gray-700 pt-4">
             <p className="text-sm text-gray-400 mb-3">Or export as report:</p>
             <div className="flex gap-3">
-              <Button 
-                variant="primary" 
+              <Button
+                variant="primary"
                 onClick={generateReport}
                 disabled={reportGenerating}
               >
