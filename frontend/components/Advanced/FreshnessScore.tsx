@@ -6,26 +6,27 @@ interface FreshnessScoreProps {
   plantedDate: number;
   harvestDate: number;
   batches: any[];
+  hasHarvested?: boolean;
 }
 
-const FreshnessScore: React.FC<FreshnessScoreProps> = ({ plantedDate, harvestDate, batches }) => {
+const FreshnessScore: React.FC<FreshnessScoreProps> = ({ plantedDate, harvestDate, batches, hasHarvested = false }) => {
   const calculateFreshnessScore = () => {
     let score = 100;
-    
+
     // Days since harvest (major factor)
     const now = Math.floor(Date.now() / 1000);
     const daysSinceHarvest = harvestDate > 0 ? Math.floor((now - harvestDate) / 86400) : 0;
-    
+
     // Deduct points based on days since harvest
     if (daysSinceHarvest > 30) score -= 40;
     else if (daysSinceHarvest > 14) score -= 25;
     else if (daysSinceHarvest > 7) score -= 15;
     else if (daysSinceHarvest > 3) score -= 5;
-    
+
     // Check for temperature anomalies in batches
     let totalAnomalies = 0;
     let totalSensorReadings = 0;
-    
+
     batches.forEach((batch: any) => {
       if (batch.sensorLogs && batch.sensorLogs.length > 0) {
         totalSensorReadings += batch.sensorLogs.length;
@@ -36,7 +37,7 @@ const FreshnessScore: React.FC<FreshnessScoreProps> = ({ plantedDate, harvestDat
         });
       }
     });
-    
+
     // Deduct points for temperature anomalies
     if (totalSensorReadings > 0) {
       const anomalyRate = (totalAnomalies / totalSensorReadings) * 100;
@@ -44,14 +45,14 @@ const FreshnessScore: React.FC<FreshnessScoreProps> = ({ plantedDate, harvestDat
       else if (anomalyRate > 25) score -= 20;
       else if (anomalyRate > 10) score -= 10;
     }
-    
+
     // Bonus points for quick processing (harvest to processing < 2 days)
     if (batches.length > 0 && harvestDate > 0) {
       const firstBatch = batches[0];
       const daysToProcess = Math.floor((Number(firstBatch.processedDate) - harvestDate) / 86400);
       if (daysToProcess <= 2) score += 5;
     }
-    
+
     // Ensure score is between 0 and 100
     return Math.max(0, Math.min(100, score));
   };
@@ -66,7 +67,7 @@ const FreshnessScore: React.FC<FreshnessScoreProps> = ({ plantedDate, harvestDat
 
   const getBestConsumptionDate = () => {
     if (harvestDate === 0) return 'Not yet harvested';
-    
+
     const daysToAdd = 14; // Assume 14 days optimal consumption window
     const bestByDate = new Date((harvestDate + (daysToAdd * 86400)) * 1000);
     return bestByDate.toLocaleDateString();
@@ -111,23 +112,31 @@ const FreshnessScore: React.FC<FreshnessScoreProps> = ({ plantedDate, harvestDat
               cx="64"
               cy="64"
               r="56"
-              stroke={score >= 75 ? '#10b981' : score >= 40 ? '#fbbf24' : '#ef4444'}
+              stroke={!hasHarvested ? '#6b7280' : score >= 75 ? '#10b981' : score >= 40 ? '#fbbf24' : '#ef4444'}
               strokeWidth="8"
               fill="none"
-              strokeDasharray={`${(score / 100) * 352} 352`}
+              strokeDasharray={`${!hasHarvested ? 0 : (score / 100) * 352} 352`}
               strokeLinecap="round"
               className="transition-all duration-1000"
             />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-4xl font-bold">{score}</span>
-            <span className="text-sm text-gray-400">/ 100</span>
+            {hasHarvested ? (
+              <>
+                <span className="text-4xl font-bold">{score}</span>
+                <span className="text-sm text-gray-400">/ 100</span>
+              </>
+            ) : (
+              <span className="text-sm font-bold text-gray-500 text-center px-2">Under Cultivation</span>
+            )}
           </div>
         </div>
-        
-        <div className={`mt-4 px-4 py-2 ${freshnessInfo.bg} rounded-full inline-flex items-center gap-2`}>
-          <span className="text-xl">{freshnessInfo.icon}</span>
-          <span className={`font-semibold ${freshnessInfo.color}`}>{freshnessInfo.label}</span>
+
+        <div className={`mt-4 px-4 py-2 ${hasHarvested ? freshnessInfo.bg : 'bg-gray-800/50'} rounded-full inline-flex items-center gap-2`}>
+          <span className="text-xl">{hasHarvested ? freshnessInfo.icon : '🌱'}</span>
+          <span className={`font-semibold ${hasHarvested ? freshnessInfo.color : 'text-gray-400'}`}>
+            {hasHarvested ? freshnessInfo.label : 'Growing Phase'}
+          </span>
         </div>
       </motion.div>
 
@@ -167,8 +176,8 @@ const FreshnessScore: React.FC<FreshnessScoreProps> = ({ plantedDate, harvestDat
           {score >= 75
             ? 'This product is very fresh! Store in a cool, dry place.'
             : score >= 40
-            ? 'Consume soon for best quality. Refrigerate if possible.'
-            : 'Freshness declining. Consume immediately or discard if spoiled.'}
+              ? 'Consume soon for best quality. Refrigerate if possible.'
+              : 'Freshness declining. Consume immediately or discard if spoiled.'}
         </p>
       </div>
     </div>

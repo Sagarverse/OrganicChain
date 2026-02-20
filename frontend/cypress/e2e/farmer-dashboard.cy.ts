@@ -4,7 +4,7 @@ describe('Farmer Dashboard - Product Registration', () => {
   beforeEach(() => {
     // Visit farmer dashboard
     cy.visit('/farmer');
-    
+
     // Mock wallet connection
     cy.connectWallet();
   });
@@ -36,7 +36,7 @@ describe('Farmer Dashboard - Product Registration', () => {
     it('should show validation errors for empty required fields', () => {
       // Try to submit without filling fields
       cy.get('button[type="submit"]').click();
-      
+
       // Check for validation messages
       cy.contains('required').should('exist');
     });
@@ -48,7 +48,7 @@ describe('Farmer Dashboard - Product Registration', () => {
       cy.get('input[name="certificationHash"]').type('QmTestHashABC123');
       cy.get('input[name="latitude"]').type('34.0522');
       cy.get('input[name="longitude"]').type('-118.2437');
-      
+
       // Set planted date to 30 days ago
       const plantedDate = new Date();
       plantedDate.setDate(plantedDate.getDate() - 30);
@@ -68,7 +68,7 @@ describe('Farmer Dashboard - Product Registration', () => {
 
       // Verify success message
       cy.contains('Product registered successfully').should('be.visible');
-      
+
       // Verify product appears in list
       cy.contains('Organic Hass Avocados').should('be.visible');
     });
@@ -77,17 +77,17 @@ describe('Farmer Dashboard - Product Registration', () => {
       cy.get('input[name="latitude"]').type('invalid');
       cy.get('input[name="longitude"]').type('invalid');
       cy.get('button[type="submit"]').click();
-      
+
       cy.contains('valid').should('exist');
     });
 
     it('should prevent future planting dates', () => {
       const futureDate = new Date();
       futureDate.setDate(futureDate.getDate() + 1);
-      
+
       cy.get('input[name="plantedDate"]').type(futureDate.toISOString().split('T')[0]);
       cy.get('button[type="submit"]').click();
-      
+
       cy.contains('future').should('exist');
     });
   });
@@ -187,10 +187,8 @@ describe('Farmer Dashboard - Product Registration', () => {
     it('should be responsive on mobile', () => {
       cy.viewport('iphone-x');
       cy.visit('/farmer');
-      
-      // Mobile menu should be visible
-      cy.get('[data-cy="mobile-menu"]').should('be.visible');
-      
+
+
       // Registration button should be accessible
       cy.get('[data-cy="register-product-btn"]').should('be.visible');
     });
@@ -198,7 +196,7 @@ describe('Farmer Dashboard - Product Registration', () => {
     it('should be responsive on tablet', () => {
       cy.viewport('ipad-2');
       cy.visit('/farmer');
-      
+
       cy.contains('Farmer Dashboard').should('be.visible');
       cy.get('[data-cy="register-product-btn"]').should('be.visible');
     });

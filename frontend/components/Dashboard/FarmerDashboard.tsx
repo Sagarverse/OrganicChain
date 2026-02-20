@@ -895,13 +895,6 @@ const FarmerDashboard: React.FC = () => {
           >
             {loadingQRCode ? 'Refreshing QR...' : 'Refresh QR Codes'}
           </Button>
-          <button
-            type="button"
-            className="md:hidden text-sm text-gray-300 hover:text-gray-200 transition-colors"
-            data-cy="mobile-menu"
-          >
-            Menu
-          </button>
           <Button
             onClick={() => setShowAllProducts(!showAllProducts)}
             variant="secondary"
@@ -961,7 +954,7 @@ const FarmerDashboard: React.FC = () => {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <GlassCard>
           <div className="flex items-center gap-4">
             <div className="text-4xl text-primary-400">
@@ -1004,6 +997,38 @@ const FarmerDashboard: React.FC = () => {
             </div>
           </div>
         </GlassCard>
+
+        {/* Tokenomics Rewards Wallet */}
+        <div className="relative p-[1px] rounded-2xl bg-gradient-to-r from-emerald-500 to-cyan-500 shadow-[0_0_20px_rgba(16,185,129,0.3)]">
+          <div className="h-full bg-obsidian rounded-2xl p-6 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 blur-2xl rounded-full"></div>
+            <div className="flex justify-between items-start mb-2 relative z-10">
+              <div>
+                <p className="text-gray-400 text-sm font-mono tracking-wider">REWARDS WALLET</p>
+                <div className="flex items-end gap-2">
+                  <p className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-300">
+                    {products.length * 150}
+                  </p>
+                  <p className="text-sm text-emerald-500 font-bold mb-1">$ORGANIC</p>
+                </div>
+              </div>
+              <div className="w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-500/50 flex items-center justify-center text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.5)]">
+                <FaSeedling />
+              </div>
+            </div>
+            <button
+              className={`w-full mt-3 py-2 text-xs font-bold text-obsidian rounded-lg transition-colors relative z-10 ${products.length === 0 ? 'bg-gray-500 cursor-not-allowed opacity-50' : 'bg-emerald-400 hover:bg-emerald-300'}`}
+              onClick={() => {
+                if (products.length > 0) {
+                  alert(`Claimed ${products.length * 150} $ORGANIC tokens to your wallet!`);
+                }
+              }}
+              disabled={products.length === 0}
+            >
+              {products.length === 0 ? 'No Yield Available' : 'Claim Yield Rewards'}
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Products List */}

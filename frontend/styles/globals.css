@@ -9,12 +9,16 @@
   ========================================*/
 
 :root {
-  /* Background Colors - Deep Dark with Gradients */
-  --bg-primary: #0f1419;
-  --bg-secondary: #1a1f2e;
-  --bg-tertiary: #252d3d;
-  --bg-hover: #2f3747;
-  
+  /* Background Colors - Deep Obsidian with Gradients */
+  --bg-primary: #020617;
+  /* Slate 950 */
+  --bg-secondary: #0f172a;
+  /* Slate 900 */
+  --bg-tertiary: #1e293b;
+  /* Slate 800 */
+  --bg-hover: #334155;
+  /* Slate 700 */
+
   /* Premium Accent Colors */
   --accent-green: #10b981;
   --accent-emerald: #059669;
@@ -22,17 +26,17 @@
   --accent-purple: #8b5cf6;
   --accent-blue: #3b82f6;
   --accent-orange: #f97316;
-  
+
   /* Text Colors - Organized Hierarchy */
   --text-primary: #f9fafb;
   --text-secondary: #d1d5db;
   --text-tertiary: #9ca3af;
-  
+
   /* Glassmorphism Elements */
   --glass-dark: rgba(15, 20, 25, 0.4);
   --glass-light: rgba(255, 255, 255, 0.05);
   --glass-border: rgba(255, 255, 255, 0.08);
-  
+
   /* Premium Shadows with Depth */
   --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.15);
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.2);
@@ -72,7 +76,12 @@ body {
   PREMIUM TYPOGRAPHY
   ========================================*/
 
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   font-weight: 700;
   letter-spacing: -0.5px;
   line-height: 1.2;
@@ -135,10 +144,12 @@ p {
 }
 
 .glass-card:hover {
-  background: rgba(26, 31, 46, 0.5);
-  border-color: rgba(16, 185, 129, 0.3);
+  background: rgba(15, 23, 42, 0.7);
+  /* Slate 900 */
+  border-color: rgba(16, 185, 129, 0.5);
+  /* Stronger neon border */
   transform: translateY(-8px) scale(1.01);
-  box-shadow: 0 20px 48px rgba(16, 185, 129, 0.2);
+  box-shadow: 0 20px 48px rgba(16, 185, 129, 0.25), inset 0 0 10px rgba(16, 185, 129, 0.1);
 }
 
 /*========================================
@@ -153,9 +164,9 @@ p {
   z-index: 50;
   backdrop-filter: blur(30px);
   -webkit-backdrop-filter: blur(30px);
-  background: linear-gradient(180deg, rgba(15, 20, 25, 0.45) 0%, rgba(26, 31, 46, 0.35) 100%);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+  background: linear-gradient(180deg, rgba(2, 6, 23, 0.8) 0%, rgba(15, 23, 42, 0.6) 100%);
+  border-bottom: 1px solid rgba(16, 185, 129, 0.2);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
   padding: 0.75rem 1.5rem;
 }
 
@@ -389,7 +400,9 @@ p {
   PREMIUM INPUT & FORM ELEMENTS
   ========================================*/
 
-input, textarea, select {
+input,
+textarea,
+select {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
@@ -400,11 +413,14 @@ input, textarea, select {
   font-size: 1rem;
 }
 
-input::placeholder, textarea::placeholder {
+input::placeholder,
+textarea::placeholder {
   color: var(--text-tertiary);
 }
 
-input:focus, textarea:focus, select:focus {
+input:focus,
+textarea:focus,
+select:focus {
   outline: none;
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(16, 185, 129, 0.5);
@@ -483,15 +499,19 @@ input:focus, textarea:focus, select:focus {
   0% {
     transform: translateX(-100%) translateY(-100%) rotate(45deg);
   }
+
   100% {
     transform: translateX(100%) translateY(100%) rotate(45deg);
   }
 }
 
 @keyframes pulse-glow {
-  0%, 100% {
+
+  0%,
+  100% {
     box-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
   }
+
   50% {
     box-shadow: 0 0 30px rgba(16, 185, 129, 0.6);
   }
@@ -581,9 +601,11 @@ input:focus, textarea:focus, select:focus {
   0% {
     background-position: 0% 50%;
   }
+
   50% {
     background-position: 100% 50%;
   }
+
   100% {
     background-position: 0% 50%;
   }
@@ -673,8 +695,13 @@ input:focus, textarea:focus, select:focus {
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 /* Authenticity score gauge */
@@ -793,7 +820,7 @@ input:focus, textarea:focus, select:focus {
   .glass-card {
     border-radius: 16px;
   }
-  
+
   .map-container {
     height: 300px;
   }

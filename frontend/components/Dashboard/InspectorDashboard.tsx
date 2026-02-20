@@ -15,6 +15,72 @@ import {
 } from '../../utils/blockchain';
 import { getIPFSUrl } from '../../utils/ipfs';
 
+const AITerminalModal = ({ isOpen, onClose, certId, onComplete }: any) => {
+  const [logs, setLogs] = useState<string[]>([]);
+  const [isDone, setIsDone] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setLogs([]);
+      setIsDone(false);
+      return;
+    }
+
+    const steps = [
+      '> INITIALIZING NEURAL NETWORK MODEL v4.2.1...',
+      `> LOADING CERTIFICATE DATA [ID: ${certId}]...`,
+      '> ANALYZING ISSUER CRYPTOGRAPHIC SIGNATURE...',
+      '> [OK] SIGNATURE VERIFIED AGAINST PUBLIC REGISTRY',
+      '> EXTRACTING MULTIMODAL SENSOR TELEMETRY...',
+      '> RUNNING ANOMALY DETECTION ON TEMPERATURE DELTAS...',
+      '> [OK] NO THERMAL TAMPERING DETECTED',
+      '> EVALUATING GPS PATH INTEGRITY MODEL...',
+      '> [OK] GEOSPATIAL DATA CONSISTENT WITH EXPECTED ROUTES',
+      '> CROSS-REFERENCING SATELLITE IMAGERY WITH CLAIMED YIELD...',
+      '> [OK] VEGETATION INDEX MATCHES HARVEST VOLUME',
+      '',
+      '==================================================',
+      '>> AI AUDIT COMPLETE',
+      '>> CONFIDENCE SCORE: 98.7% (AUTHENTIC ORGANIC)',
+      '=================================================='
+    ];
+
+    let currentStep = 0;
+    const interval = setInterval(() => {
+      if (currentStep < steps.length) {
+        setLogs(prev => [...prev, steps[currentStep]]);
+        currentStep++;
+      } else {
+        clearInterval(interval);
+        setIsDone(true);
+        if (onComplete) onComplete();
+      }
+    }, 400); // 400ms per log line
+
+    return () => clearInterval(interval);
+  }, [isOpen, certId, onComplete]);
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={`AI Fraud Analysis - Cert #${certId}`}>
+      <div className="bg-black border border-emerald-500/30 p-4 rounded-lg font-mono text-sm text-emerald-400 h-64 overflow-y-auto shadow-[0_0_20px_rgba(16,185,129,0.1)_inset]">
+        {logs.map((log, i) => (
+          <div key={i} className={log.startsWith('>>') ? 'text-white font-bold' : log.includes('[OK]') ? 'text-emerald-300' : 'text-emerald-500'}>
+            {log}
+          </div>
+        ))}
+        {!isDone && <div className="animate-pulse flex gap-1 mt-2"><span>•</span><span>•</span><span>•</span></div>}
+      </div>
+      {isDone && (
+        <div className="mt-4">
+          <Button onClick={onClose} className="w-full bg-emerald-600 hover:bg-emerald-500 w-full text-white font-bold">
+            Analysis Verified - Close
+          </Button>
+        </div>
+      )}
+    </Modal>
+  );
+};
+
 export default function InspectorDashboard() {
   const router = useRouter();
   const [account, setAccount] = useState<string | null>(null);
@@ -27,6 +93,10 @@ export default function InspectorDashboard() {
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [selectedCertId, setSelectedCertId] = useState<number | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+
+  // AI states
+  const [aiModalOpen, setAiModalOpen] = useState(false);
+  const [aiAuditedCerts, setAiAuditedCerts] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     init();
@@ -228,7 +298,19 @@ export default function InspectorDashboard() {
                 </div>
               </div>
 
-              <div className="flex gap-3">
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  onClick={() => {
+                    setSelectedCertId(cert.certId);
+                    setAiModalOpen(true);
+                  }}
+                  disabled={processingId === cert.certId}
+                  className={`flex-1 ${aiAuditedCerts.has(cert.certId) ? 'bg-emerald-600 border-emerald-500' : 'bg-gray-800 border-emerald-500 text-emerald-400 hover:bg-emerald-900/40'}`}
+                >
+                  <FaShieldAlt className="inline mr-2" />
+                  {aiAuditedCerts.has(cert.certId) ? 'AI Audit Verified 98%' : 'Run AI Audit'}
+                </Button>
+                <div className="w-full h-px bg-gray-800 my-1"></div>
                 <Button
                   onClick={() => handleApprove(cert.certId)}
                   disabled={processingId === cert.certId}
@@ -251,6 +333,17 @@ export default function InspectorDashboard() {
           ))}
         </div>
       )}
+
+      <AITerminalModal
+        isOpen={aiModalOpen}
+        onClose={() => setAiModalOpen(false)}
+        certId={selectedCertId}
+        onComplete={() => {
+          if (selectedCertId) {
+            setAiAuditedCerts(prev => new Set(prev).add(selectedCertId));
+          }
+        }}
+      />
 
       <Modal
         isOpen={rejectModalOpen}

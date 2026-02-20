@@ -6,37 +6,50 @@ interface VerificationBadgeProps {
   score: number;
   isAuthentic: boolean;
   details?: string;
+  hasApprovedCert?: boolean;
+  hasHarvested?: boolean;
 }
 
-const VerificationBadge: React.FC<VerificationBadgeProps> = ({ 
-  score, 
-  isAuthentic, 
-  details 
+const VerificationBadge: React.FC<VerificationBadgeProps> = ({
+  score,
+  isAuthentic,
+  details,
+  hasApprovedCert = false,
+  hasHarvested = false
 }) => {
+  // Logic gating overrides
+  const effectiveScore = !hasHarvested
+    ? Math.min(score, 30)
+    : !hasApprovedCert
+      ? Math.min(score, 60)
+      : score;
+
+  const effectiveIsAuthentic = isAuthentic && hasApprovedCert && hasHarvested;
+
   const getScoreColor = () => {
-    if (score >= 90) return 'text-green-400';
-    if (score >= 70) return 'text-yellow-400';
-    if (score >= 50) return 'text-orange-400';
+    if (effectiveScore >= 90) return 'text-green-400';
+    if (effectiveScore >= 70) return 'text-yellow-400';
+    if (effectiveScore >= 50) return 'text-orange-400';
     return 'text-red-500';
   };
 
   const getScoreBg = () => {
-    if (score >= 90) return 'from-green-500/20 to-green-600/10';
-    if (score >= 70) return 'from-yellow-500/20 to-yellow-600/10';
-    if (score >= 50) return 'from-orange-500/20 to-orange-600/10';
+    if (effectiveScore >= 90) return 'from-green-500/20 to-green-600/10';
+    if (effectiveScore >= 70) return 'from-yellow-500/20 to-yellow-600/10';
+    if (effectiveScore >= 50) return 'from-orange-500/20 to-orange-600/10';
     return 'from-red-500/20 to-red-600/10';
   };
 
   const getIcon = () => {
-    if (score >= 90) return <FaCheckCircle className="text-3xl" />;
-    if (score >= 50) return <FaExclamationTriangle className="text-3xl" />;
+    if (effectiveScore >= 90) return <FaCheckCircle className="text-3xl" />;
+    if (effectiveScore >= 50) return <FaExclamationTriangle className="text-3xl" />;
     return <FaTimesCircle className="text-3xl" />;
   };
 
   const getScoreClass = () => {
-    if (score >= 90) return 'score-high';
-    if (score >= 70) return 'score-medium';
-    if (score >= 50) return 'score-low';
+    if (effectiveScore >= 90) return 'score-high';
+    if (effectiveScore >= 70) return 'score-medium';
+    if (effectiveScore >= 50) return 'score-low';
     return 'score-critical';
   };
 
@@ -56,17 +69,16 @@ const VerificationBadge: React.FC<VerificationBadgeProps> = ({
       <div className="relative mb-4">
         <div className="w-full h-4 bg-gray-800 rounded-full overflow-hidden">
           <motion.div
-            className={`h-full bg-gradient-to-r ${
-              score >= 90
+            className={`h-full bg-gradient-to-r ${effectiveScore >= 90
                 ? 'from-green-500 to-green-400'
-                : score >= 70
-                ? 'from-yellow-500 to-yellow-400'
-                : score >= 50
-                ? 'from-orange-500 to-orange-400'
-                : 'from-red-500 to-red-400'
-            } ${getScoreClass()}`}
+                : effectiveScore >= 70
+                  ? 'from-yellow-500 to-yellow-400'
+                  : effectiveScore >= 50
+                    ? 'from-orange-500 to-orange-400'
+                    : 'from-red-500 to-red-400'
+              } ${getScoreClass()}`}
             initial={{ width: 0 }}
-            animate={{ width: `${score}%` }}
+            animate={{ width: `${effectiveScore}%` }}
             transition={{ duration: 1, ease: 'easeOut' }}
             data-cy="score-indicator"
           />
@@ -77,7 +89,7 @@ const VerificationBadge: React.FC<VerificationBadgeProps> = ({
             className={`font-bold text-lg ${getScoreColor()} ${getScoreClass()}`}
             data-cy="authenticity-score"
           >
-            {score}/100
+            {effectiveScore}/100
           </span>
           <span>100</span>
         </div>
@@ -85,13 +97,17 @@ const VerificationBadge: React.FC<VerificationBadgeProps> = ({
 
       {/* Status */}
       <div className="flex items-center justify-center gap-2 mb-2">
-        {isAuthentic ? (
+        {effectiveIsAuthentic ? (
           <span className="text-green-400 font-semibold" data-cy="authentic-badge">
             ✓ Verified Authentic
           </span>
         ) : (
-          <span className="text-red-400 font-semibold" data-cy="warning-badge">
-            Verification Failed
+          <span className={`${effectiveScore >= 50 ? 'text-yellow-400' : 'text-red-400'} font-semibold text-center`} data-cy="warning-badge">
+            {!hasHarvested
+              ? "Verification Pending (Not Harvested)"
+              : !hasApprovedCert
+                ? "Pending Inspector Certificate"
+                : "Verification Failed"}
           </span>
         )}
       </div>
@@ -109,19 +125,21 @@ const VerificationBadge: React.FC<VerificationBadgeProps> = ({
         <div className="space-y-1 text-xs text-gray-500">
           <div className="flex justify-between">
             <span>Time Consistency</span>
-            <span>{score >= 90 ? '✓' : score >= 50 ? '~' : '✗'}</span>
+            <span>{effectiveScore >= 90 ? '✓' : effectiveScore >= 50 ? '~' : '✗'}</span>
           </div>
           <div className="flex justify-between">
             <span>Location Tracking</span>
-            <span>{score >= 80 ? '✓' : score >= 50 ? '~' : '✗'}</span>
+            <span>{effectiveScore >= 80 ? '✓' : effectiveScore >= 50 ? '~' : '✗'}</span>
           </div>
           <div className="flex justify-between">
             <span>Sensor Data Quality</span>
-            <span>{score >= 70 ? '✓' : score >= 50 ? '~' : '✗'}</span>
+            <span>{effectiveScore >= 70 ? '✓' : effectiveScore >= 50 ? '~' : '✗'}</span>
           </div>
           <div className="flex justify-between">
-            <span>Certificate Validity</span>
-            <span>{score >= 85 ? '✓' : score >= 50 ? '~' : '✗'}</span>
+            <span>Inspector Certification Valid</span>
+            <span className={hasApprovedCert ? 'text-green-400' : 'text-red-400'}>
+              {hasApprovedCert ? '✓ Verified' : '✗ Missing'}
+            </span>
           </div>
         </div>
       </div>

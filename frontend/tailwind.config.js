@@ -9,20 +9,29 @@ module.exports = {
     extend: {
       colors: {
         primary: {
-          50: '#e6f2ed',
-          100: '#cce5db',
-          200: '#99cbb7',
-          300: '#66b193',
-          400: '#40826d',
-          500: '#2d5a3a',
-          600: '#1a3f2c',
-          700: '#152f22',
-          800: '#102018',
-          900: '#0a100e',
+          50: '#ecfdf5',
+          100: '#d1fae5',
+          200: '#a7f3d0',
+          300: '#6ee7b7',
+          400: '#34d399',
+          500: '#10b981', // Neon Emerald
+          600: '#059669',
+          700: '#047857',
+          800: '#065f46',
+          900: '#064e3b',
+        },
+        obsidian: {
+          light: '#1e293b', // Slate 800
+          DEFAULT: '#0f172a', // Slate 900
+          dark: '#020617', // Slate 950
+        },
+        gold: {
+          accent: '#fbbf24', // Amber 400
         },
         glass: {
-          light: 'rgba(255, 255, 255, 0.1)',
-          dark: 'rgba(26, 63, 44, 0.2)',
+          light: 'rgba(255, 255, 255, 0.05)',
+          dark: 'rgba(2, 6, 23, 0.6)', // Obsidian dark glass
+          emerald: 'rgba(16, 185, 129, 0.1)',
         },
       },
       backdropBlur: {

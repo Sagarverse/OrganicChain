@@ -14,7 +14,10 @@ import Modal from '../../components/UI/Modal';
 import Button from '../../components/UI/Button';
 import { getProductHistory, verifyProduct, calculateDistance, getCertificate } from '../../utils/blockchain';
 import { getIPFSUrl } from '../../utils/ipfs';
-import { FaQrcode, FaCertificate, FaMapMarkedAlt, FaIndustry, FaThermometerHalf, FaBox } from 'react-icons/fa';
+import { FaCertificate, FaThermometerHalf, FaBox, FaMapMarkedAlt, FaIndustry, FaQrcode } from 'react-icons/fa';
+import { Canvas } from '@react-three/fiber';
+import { OrbitControls, Box, Environment, Float, Decal } from '@react-three/drei';
+import * as THREE from 'three';
 import { PRODUCT_STATUS } from '../../utils/constants';
 
 // Dynamically import ProductJourneyMap (requires leaflet, client-side only)
@@ -22,6 +25,28 @@ const ProductJourneyMap = dynamic(
   () => import('../../components/Maps/ProductJourneyMap'),
   { ssr: false, loading: () => <div className="h-96 bg-gray-700 rounded-lg animate-pulse" /> }
 );
+
+// --- 3D Digital Twin Asset Component ---
+const DigitalTwinCrate = () => {
+  return (
+    <Float speed={2} rotationIntensity={0.5} floatIntensity={1}>
+      <mesh castShadow receiveShadow>
+        <boxGeometry args={[2, 1.5, 2]} />
+        {/* Wooden texture base mapping */}
+        <meshStandardMaterial
+          color="#8b5a2b"
+          roughness={0.8}
+          metalness={0.1}
+        />
+        {/* Glowing structural rims to look 'Digital' */}
+        <mesh position={[0, 0, 0]}>
+          <boxGeometry args={[2.05, 1.55, 2.05]} />
+          <meshBasicMaterial color="#10b981" wireframe={true} transparent opacity={0.3} />
+        </mesh>
+      </mesh>
+    </Float>
+  );
+};
 
 export default function ConsumerProductPage() {
   const router = useRouter();
@@ -249,6 +274,15 @@ our blockchain-based supply chain system.
   const hasAnomaly = batches.some((batch: any) =>
     (batch.sensorLogs || []).some((log: any) => log.anomalyDetected || log.anomaly)
   );
+  const hasApprovedCert = batches.some((batch: any) =>
+    (batch.certificateIds || []).some((certId: any) => {
+      const cert = certificateDetails[Number(certId)];
+      return cert && cert.approved;
+    })
+  );
+
+  const hasHarvested = product && Number(product.harvestDate) > 0;
+
   const verificationDisplay = verification || {
     isAuthentic: false,
     score: 0,
@@ -312,6 +346,8 @@ our blockchain-based supply chain system.
             score={verificationDisplay.score}
             isAuthentic={verificationDisplay.isAuthentic}
             details={verificationDisplay.details}
+            hasApprovedCert={hasApprovedCert}
+            hasHarvested={hasHarvested}
           />
 
           {/* Product Details */}
@@ -455,6 +491,7 @@ our blockchain-based supply chain system.
             plantedDate={Number(product.plantedDate)}
             harvestDate={Number(product.harvestDate) || 0}
             batches={batches}
+            hasHarvested={hasHarvested}
           />
 
           <SustainabilityScore
@@ -611,18 +648,51 @@ our blockchain-based supply chain system.
       </div>
 
       {/* AR Modal */}
-      <Modal isOpen={isArOpen} onClose={() => setIsArOpen(false)} title="AR Product View">
+      <Modal isOpen={isArOpen} onClose={() => setIsArOpen(false)} title="Digital Twin (3D Asset)">
         <div className="space-y-4">
-          <div className="bg-black/30 border border-primary-500/30 rounded-lg p-4 text-center">
-            <p className="text-gray-300">Mock AR overlay (demo)</p>
-            <div className="mt-4 bg-gray-900/60 rounded-lg p-6">
-              <p className="text-sm text-gray-400">Farm:</p>
-              <p className="text-lg font-semibold text-primary-300">{product.farmer?.substring(0, 10)}...</p>
-              <p className="text-sm text-gray-400 mt-2">Crop:</p>
-              <p className="text-lg font-semibold text-primary-300">{product.name}</p>
+          <div className="relative bg-black border border-primary-500/30 rounded-lg p-2 h-[400px] w-full overflow-hidden shadow-[0_0_50px_rgba(16,185,129,0.1)_inset]">
+            <Canvas camera={{ position: [4, 3, 5], fov: 45 }}>
+              <ambientLight intensity={0.5} />
+              <spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} intensity={1} castShadow />
+              <pointLight position={[-10, -10, -10]} intensity={0.5} />
+              <Environment preset="city" />
+              <DigitalTwinCrate />
+              <OrbitControls
+                enableZoom={true}
+                enablePan={false}
+                autoRotate={true}
+                autoRotateSpeed={2}
+                minPolarAngle={Math.PI / 4}
+                maxPolarAngle={Math.PI / 1.5}
+              />
+            </Canvas>
+
+            {/* UI Overlay on top of 3D Canvas */}
+            <div className="absolute top-4 left-4 right-4 pointer-events-none">
+              <div className="flex justify-between items-start">
+                <div className="bg-black/60 backdrop-blur-md border border-gray-700 rounded-lg p-3">
+                  <p className="text-xs text-primary-400 font-mono tracking-widest mb-1">ASSET MAPPING</p>
+                  <p className="text-sm font-bold text-white">{product.name}</p>
+                  <p className="text-xs text-gray-400 mt-1">ID: #{Number(product.id)}</p>
+                </div>
+                <div className="bg-emerald-500/20 text-emerald-400 text-xs font-mono px-2 py-1 rounded border border-emerald-500/30">
+                  LIVE 3D
+                </div>
+              </div>
+            </div>
+
+            <div className="absolute bottom-4 left-4 right-4 pointer-events-none">
+              <div className="bg-black/60 backdrop-blur-md border border-gray-700 rounded-lg p-3 text-center">
+                <p className="text-xs text-gray-300 flex items-center justify-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  Syncing with physical telemetry...
+                </p>
+              </div>
             </div>
           </div>
-          <p className="text-xs text-gray-500">This is a mock AR view for demo purposes.</p>
+          <p className="text-xs text-center text-gray-500 font-mono">
+            Direct manipulation enabled. Drag to rotate. Scroll to zoom.
+          </p>
         </div>
       </Modal>
 

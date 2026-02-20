@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { FaLeaf, FaWallet, FaUser } from 'react-icons/fa';
+import { FaLeaf, FaWallet, FaUser, FaQrcode } from 'react-icons/fa';
 import { connectWallet, getCurrentAccount, formatAddress } from '../../utils/blockchain';
 
 const Navbar: React.FC = () => {
@@ -10,7 +10,7 @@ const Navbar: React.FC = () => {
 
   useEffect(() => {
     checkConnection();
-    
+
     if (typeof window !== 'undefined' && window.ethereum) {
       window.ethereum.on('accountsChanged', handleAccountsChanged);
       window.ethereum.on('chainChanged', () => window.location.reload());
@@ -56,6 +56,7 @@ const Navbar: React.FC = () => {
     { href: '/location', label: 'Tracking' },
     { href: '/admin', label: 'Admin' },
     { href: '/consumer', label: 'Verify' },
+    { href: '/explorer', label: 'Explorer' },
   ];
 
   return (
@@ -91,8 +92,19 @@ const Navbar: React.FC = () => {
           ))}
         </div>
 
-        {/* Wallet Connection Section */}
+        {/* Wallet Connection & Scan Section */}
         <div className="navbar-actions">
+          <Link href="/consumer">
+            <motion.div
+              className="navbar-wallet-button border-emerald-500/50 bg-emerald-500/20 hover:bg-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all"
+              whileHover={{ scale: 1.05, y: -2 }}
+              whileTap={{ scale: 0.95, y: 0 }}
+            >
+              <FaQrcode className="text-emerald-300 text-sm animate-pulse" />
+              <span className="text-emerald-100">Verify & Scan</span>
+            </motion.div>
+          </Link>
+
           {account ? (
             <motion.div
               className="navbar-wallet-button"
